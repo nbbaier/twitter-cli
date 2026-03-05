@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
-import json
-from typing import List, Optional
 
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
-from rich.text import Text
 
-from .models import Tweet, UserProfile
+from .serialization import tweets_to_json as _tweets_to_json
 
 
 def format_number(n):
@@ -168,46 +165,7 @@ def print_filter_stats(original_count, filtered, console=None):
 def tweets_to_json(tweets):
     # type: (List[Tweet]) -> str
     """Export tweets as JSON string."""
-    result = []
-    for t in tweets:
-        d = {
-            "id": t.id,
-            "text": t.text,
-            "author": {
-                "id": t.author.id,
-                "name": t.author.name,
-                "screenName": t.author.screen_name,
-                "profileImageUrl": t.author.profile_image_url,
-                "verified": t.author.verified,
-            },
-            "metrics": {
-                "likes": t.metrics.likes,
-                "retweets": t.metrics.retweets,
-                "replies": t.metrics.replies,
-                "quotes": t.metrics.quotes,
-                "views": t.metrics.views,
-                "bookmarks": t.metrics.bookmarks,
-            },
-            "createdAt": t.created_at,
-            "media": [
-                {"type": m.type, "url": m.url, "width": m.width, "height": m.height}
-                for m in t.media
-            ],
-            "urls": t.urls,
-            "isRetweet": t.is_retweet,
-            "retweetedBy": t.retweeted_by,
-            "lang": t.lang,
-            "score": t.score,
-        }
-        if t.quoted_tweet:
-            qt = t.quoted_tweet
-            d["quotedTweet"] = {
-                "id": qt.id,
-                "text": qt.text,
-                "author": {"screenName": qt.author.screen_name, "name": qt.author.name},
-            }
-        result.append(d)
-    return json.dumps(result, ensure_ascii=False, indent=2)
+    return _tweets_to_json(tweets)
 
 
 def print_user_profile(user, console=None):

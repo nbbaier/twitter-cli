@@ -1,6 +1,6 @@
 # Twitter CLI
 
-Twitter/X 命令行工具 — 读取 Timeline、管理推文。
+Twitter/X 命令行工具 — 读取 Timeline、书签和用户信息。
 
 **零 API Key** — 使用浏览器 Cookie 认证，免费访问 Twitter。
 
@@ -22,14 +22,17 @@ twitter feed
 ### 读取
 
 ```bash
-# 抓取首页 timeline
+# 抓取首页 timeline（For You 算法推荐）
 twitter feed
+
+# 抓取关注的人的 timeline（Following 时间线）
+twitter feed -t following
 
 # 自定义抓取条数
 twitter feed --max 50
 
-# 跳过筛选
-twitter feed --no-filter
+# 开启筛选（按 score 排序过滤）
+twitter feed --filter
 
 # JSON 输出
 twitter feed --json > tweets.json
@@ -51,31 +54,6 @@ twitter user elonmusk
 
 # 列出用户推文
 twitter user-posts elonmusk --max 20
-
-# 查看粉丝
-twitter followers elonmusk --max 30
-
-# 查看关注
-twitter following elonmusk --max 30
-```
-
-### 发推
-
-```bash
-# 发新推文
-twitter post "Hello World"
-
-# 回复推文
-twitter reply <tweet_id> "这是回复内容"
-
-# 引用转推（传 URL 或 ID 均可）
-twitter quote <tweet_url_or_id> "这是引用内容"
-
-# 删除推文（会有确认提示）
-twitter delete <tweet_id>
-
-# 跳过删除确认
-twitter delete <tweet_id> --yes
 ```
 
 ## Pipeline
@@ -132,12 +110,26 @@ export TWITTER_CT0=your_ct0
 twitter_cli/
 ├── __init__.py     # 版本信息
 ├── cli.py          # CLI 入口 (click)
-├── client.py       # Twitter GraphQL API Client (GET + POST)
+├── client.py       # Twitter GraphQL API Client (GET)
 ├── auth.py         # Cookie 提取 (env / browser-cookie3)
 ├── filter.py       # Engagement scoring + 筛选
 ├── formatter.py    # Rich 终端输出 + JSON
 ├── config.py       # YAML 配置加载
+├── serialization.py # Tweet JSON <-> dataclass
 └── models.py       # 数据模型 (dataclass)
+```
+
+## Development
+
+```bash
+# Install development tools
+uv sync --extra dev
+
+# Run tests
+uv run pytest
+
+# Lint
+uv run ruff check .
 ```
 
 ## 注意事项

@@ -29,6 +29,13 @@ dependencies = [
     "browser-cookie3>=0.19",
     "click>=8.0",
     "rich>=13.0",
+    "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.8",
 ]
 
 [project.urls]
@@ -38,3 +45,10 @@ Issues = "https://github.com/jackwener/twitter-cli/issues"
 
 [project.scripts]
 twitter = "twitter_cli.cli:cli"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+
+[tool.ruff]
+line-length = 100

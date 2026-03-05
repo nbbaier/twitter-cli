@@ -6,14 +6,14 @@ configurable rules (topN, min score, language, etc.).
 
 from __future__ import annotations
 
+from dataclasses import replace
 import math
-from typing import Dict, List
+from typing import Mapping
 
-from .models import Tweet
 
 
 # Type alias for filter weights dict
-FilterWeights = Dict[str, float]
+FilterWeights = Mapping[str, float]
 
 DEFAULT_WEIGHTS = {
     "likes": 1.0,
@@ -25,7 +25,7 @@ DEFAULT_WEIGHTS = {
 
 
 def score_tweet(tweet, weights=None):
-    # type: (Tweet, FilterWeights) -> float
+    # type: (Tweet, Optional[FilterWeights]) -> float
     """Calculate engagement score for a single tweet.
 
     Formula:
@@ -35,20 +35,19 @@ def score_tweet(tweet, weights=None):
             + w_bookmarks × bookmarks
             + w_views_log × log10(views)
     """
-    if weights is None:
-        weights = DEFAULT_WEIGHTS
+    weight_map = _build_weights(weights or {})
     m = tweet.metrics
     return (
-        weights.get("likes", 1.0) * m.likes
-        + weights.get("retweets", 3.0) * m.retweets
-        + weights.get("replies", 2.0) * m.replies
-        + weights.get("bookmarks", 5.0) * m.bookmarks
-        + weights.get("views_log", 0.5) * math.log10(max(m.views, 1))
+        weight_map["likes"] * m.likes
+        + weight_map["retweets"] * m.retweets
+        + weight_map["replies"] * m.replies
+        + weight_map["bookmarks"] * m.bookmarks
+        + weight_map["views_log"] * math.log10(max(m.views, 1))
     )
 
 
 def filter_tweets(tweets, config):
-    # type: (List[Tweet], dict) -> List[Tweet]
+    # type: (Sequence[Tweet], Mapping[str, Any]) -> List[Tweet]
     """Filter and rank tweets according to config.
 
     Config keys:
@@ -64,27 +63,53 @@ def filter_tweets(tweets, config):
     # 1. Language filter
     lang_filter = config.get("lang", [])
     if lang_filter:
-        filtered = [t for t in filtered if t.lang in lang_filter]
+        lang_set = {str(lang) for lang in lang_filter if str(lang)}
+        filtered = [tweet for tweet in filtered if tweet.lang in lang_set]
 
     # 2. Exclude retweets
     if config.get("excludeRetweets", False):
-        filtered = [t for t in filtered if not t.is_retweet]
+        filtered = [tweet for tweet in filtered if not tweet.is_retweet]
 
     # 3. Score all tweets
-    weights = config.get("weights", DEFAULT_WEIGHTS)
-    for t in filtered:
-        t.score = round(score_tweet(t, weights), 1)
+    weights = _build_weights(config.get("weights", {}))
+    scored = [replace(tweet, score=round(score_tweet(tweet, weights), 1)) for tweet in filtered]
 
     # 4. Sort by score (descending)
-    filtered.sort(key=lambda t: t.score, reverse=True)
+    scored.sort(key=lambda tweet: tweet.score, reverse=True)
 
     # 5. Apply filter mode
-    mode = config.get("mode", "topN")
+    mode = str(config.get("mode", "topN"))
     if mode == "topN":
-        top_n = config.get("topN", 20)
-        return filtered[:top_n]
-    elif mode == "score":
-        min_score = config.get("minScore", 50)
-        return [t for t in filtered if t.score >= min_score]
-    else:
-        return filtered
+        top_n = max(_as_int(config.get("topN"), 20), 1)
+        return scored[:top_n]
+    if mode == "score":
+        min_score = _as_float(config.get("minScore"), 50.0)
+        return [tweet for tweet in scored if tweet.score >= min_score]
+    return scored
+
+
+def _build_weights(raw_weights):
+    # type: (Mapping[str, Any]) -> Dict[str, float]
+    """Merge custom weights with defaults and coerce to float."""
+    merged = {}
+    for key, default_value in DEFAULT_WEIGHTS.items():
+        merged[key] = _as_float(raw_weights.get(key), default_value)
+    return merged
+
+
+def _as_int(value, default):
+    # type: (Any, int) -> int
+    """Best-effort int conversion."""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _as_float(value, default):
+    # type: (Any, float) -> float
+    """Best-effort float conversion."""
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default

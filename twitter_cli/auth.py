@@ -13,8 +13,9 @@ import os
 import ssl
 import subprocess
 import sys
+import urllib.error
 import urllib.request
-from typing import Any, Dict, Optional
+from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -142,7 +143,8 @@ sys.exit(1)
         if not output:
             stderr = result.stderr.strip()
             if stderr:
-                # Maybe browser-cookie3 not installed, try with uv
+                logger.debug("Cookie extraction stderr from current env: %s", stderr[:300])
+                # Maybe browser-cookie3 not installed, try with uv.
                 result2 = subprocess.run(
                     ["uv", "run", "--with", "browser-cookie3", "python3", "-c", extract_script],
                     capture_output=True,
@@ -151,6 +153,7 @@ sys.exit(1)
                 )
                 output = result2.stdout.strip()
                 if not output:
+                    logger.debug("Cookie extraction stderr from uv fallback: %s", result2.stderr.strip()[:300])
                     return None
 
         data = json.loads(output)
@@ -185,4 +188,6 @@ def get_cookies() -> Dict[str, str]:
             "Option 2: Make sure you are logged into x.com in your browser (Chrome/Edge/Firefox/Brave)"
         )
 
+    # Verify only for explicit auth failures; transient endpoint issues are tolerated.
+    verify_cookies(cookies["auth_token"], cookies["ct0"])
     return cookies
