@@ -63,7 +63,6 @@ twitter favorite
 twitter favorite --max 30 --json
 
 # User
-
 twitter user elonmusk
 twitter user-posts elonmusk --max 20
 ```
@@ -103,6 +102,22 @@ Filter behavior:
 
 - Default behavior: no ranking filter unless `--filter` is passed
 - With `--filter`: tweets are scored/sorted using `config.filter`
+
+Scoring formula:
+
+```text
+score = likes_w * likes
+      + retweets_w * retweets
+      + replies_w * replies
+      + bookmarks_w * bookmarks
+      + views_log_w * log10(max(views, 1))
+```
+
+Mode behavior:
+
+- `mode: "topN"` keeps the highest `topN` tweets by score
+- `mode: "score"` keeps tweets where `score >= minScore`
+- `mode: "all"` returns all tweets after sorting by score
 
 ### Troubleshooting
 
@@ -193,6 +208,26 @@ twitter user-posts elonmusk --max 20
 
 1. `TWITTER_AUTH_TOKEN` + `TWITTER_CT0`
 2. 浏览器 Cookie 自动提取（Chrome/Edge/Firefox/Brave）
+
+### 筛选算法
+
+只有在传入 `--filter` 时才会启用筛选评分；默认不筛选。
+
+评分公式：
+
+```text
+score = likes_w * likes
+      + retweets_w * retweets
+      + replies_w * replies
+      + bookmarks_w * bookmarks
+      + views_log_w * log10(max(views, 1))
+```
+
+模式说明：
+
+- `mode: "topN"`：按分数排序后保留前 `topN` 条
+- `mode: "score"`：仅保留 `score >= minScore` 的推文
+- `mode: "all"`：按分数排序后全部保留
 
 ### 常见问题
 
