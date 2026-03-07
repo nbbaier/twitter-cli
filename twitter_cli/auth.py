@@ -21,6 +21,7 @@ from .constants import BEARER_TOKEN, USER_AGENT
 
 logger = logging.getLogger(__name__)
 
+
 def load_from_env() -> Optional[Dict[str, str]]:
     """Load cookies from environment variables."""
     auth_token = os.environ.get("TWITTER_AUTH_TOKEN", "")
@@ -59,7 +60,7 @@ def verify_cookies(auth_token, ct0):
 
         ctx = ssl.create_default_context()
         try:
-            with urllib.request.urlopen(req, context=ctx, timeout=3) as resp:
+            with urllib.request.urlopen(req, context=ctx, timeout=5) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
                 return {"screen_name": data.get("screen_name", "")}
         except urllib.error.HTTPError as e:

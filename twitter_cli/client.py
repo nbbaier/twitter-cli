@@ -311,11 +311,7 @@ class TwitterClient:
             screen_name=core.get("screen_name") or legacy.get("screen_name", screen_name),
             bio=legacy.get("description", ""),
             location=legacy.get("location", ""),
-            url=(
-                legacy.get("entities", {}).get("url", {}).get("urls", [{}])[0].get("expanded_url", "")
-                if legacy.get("entities", {}).get("url")
-                else ""
-            ),
+            url=_deep_get(legacy, "entities", "url", "urls", 0, "expanded_url") or "",
             followers_count=_to_int(legacy.get("followers_count"), 0),
             following_count=_to_int(legacy.get("friends_count"), 0),
             tweets_count=_to_int(legacy.get("statuses_count"), 0),
