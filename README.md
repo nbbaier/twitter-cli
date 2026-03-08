@@ -140,6 +140,12 @@ filter:
     replies: 2.0
     bookmarks: 5.0
     views_log: 0.5
+
+rateLimit:
+  requestDelay: 1.5     # seconds between paginated requests
+  maxRetries: 3          # retry count on rate limit (429)
+  retryBaseDelay: 5.0    # base delay for exponential backoff
+  maxCount: 200          # hard cap on fetched items
 ```
 
 Filter behavior:
@@ -199,6 +205,7 @@ twitter_cli/
 ├── client.py
 ├── auth.py
 ├── config.py
+├── constants.py
 ├── filter.py
 ├── formatter.py
 ├── serialization.py

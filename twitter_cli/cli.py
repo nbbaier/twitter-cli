@@ -115,10 +115,11 @@ def cli(verbose):
     _setup_logging(verbose)
 
 
-def _fetch_and_display(fetch_fn, label, emoji, max_count, as_json, output_file, do_filter):
-    # type: (Any, str, str, Optional[int], bool, Optional[str], bool) -> None
+def _fetch_and_display(fetch_fn, label, emoji, max_count, as_json, output_file, do_filter, config=None):
+    # type: (Any, str, str, Optional[int], bool, Optional[str], bool, Optional[dict]) -> None
     """Common fetch-filter-display logic for timeline-like commands."""
-    config = load_config()
+    if config is None:
+        config = load_config()
     try:
         fetch_count = _resolve_fetch_count(max_count, config.get("fetch", {}).get("count", 50))
         console.print("%s Fetching %s (%d tweets)...\n" % (emoji, label, fetch_count))
@@ -211,7 +212,7 @@ def favorite(max_count, as_json, output_file, do_filter):
     client = _get_client(config)
     _fetch_and_display(
         lambda count: client.fetch_bookmarks(count),
-        "favorites", "🔖", max_count, as_json, output_file, do_filter,
+        "favorites", "🔖", max_count, as_json, output_file, do_filter, config,
     )
 
 
@@ -243,26 +244,17 @@ def user_posts(screen_name, max_count, as_json):
     """List a user's tweets. SCREEN_NAME is the @handle (without @)."""
     screen_name = screen_name.lstrip("@")
     config = load_config()
+    client = _get_client(config)
+    console.print("👤 Fetching @%s's profile..." % screen_name)
     try:
-        fetch_count = _resolve_fetch_count(max_count, 20)
-        client = _get_client(config)
-        console.print("👤 Fetching @%s's profile..." % screen_name)
         profile = client.fetch_user(screen_name)
-        console.print("📝 Fetching tweets (%d)...\n" % fetch_count)
-        start = time.time()
-        tweets = client.fetch_user_tweets(profile.id, fetch_count)
-        elapsed = time.time() - start
-        console.print("✅ Fetched %d tweets in %.1fs\n" % (len(tweets), elapsed))
     except RuntimeError as exc:
         console.print("[red]❌ %s[/red]" % exc)
         sys.exit(1)
-
-    if as_json:
-        click.echo(tweets_to_json(tweets))
-        return
-
-    print_tweet_table(tweets, console, title="📝 @%s — %d tweets" % (screen_name, len(tweets)))
-    console.print()
+    _fetch_and_display(
+        lambda count: client.fetch_user_tweets(profile.id, count),
+        "@%s tweets" % screen_name, "📝", max_count, as_json, None, False, config,
+    )
 
 
 SEARCH_PRODUCTS = ["Top", "Latest", "Photos", "Videos"]
@@ -288,7 +280,7 @@ def search(query, product, max_count, as_json, do_filter):
     client = _get_client(config)
     _fetch_and_display(
         lambda count: client.fetch_search(query, count, product),
-        "'%s' (%s)" % (query, product), "🔍", max_count, as_json, None, do_filter,
+        "'%s' (%s)" % (query, product), "🔍", max_count, as_json, None, do_filter, config,
     )
 
 
@@ -307,7 +299,7 @@ def likes(screen_name, max_count, as_json, do_filter):
     profile = client.fetch_user(screen_name)
     _fetch_and_display(
         lambda count: client.fetch_user_likes(profile.id, count),
-        "@%s likes" % screen_name, "❤️", max_count, as_json, None, do_filter,
+        "@%s likes" % screen_name, "❤️", max_count, as_json, None, do_filter, config,
     )
 
 
@@ -356,7 +348,7 @@ def list_timeline(list_id, max_count, as_json, do_filter):
     client = _get_client(config)
     _fetch_and_display(
         lambda count: client.fetch_list_timeline(list_id, count),
-        "list %s" % list_id, "📋", max_count, as_json, None, do_filter,
+        "list %s" % list_id, "📋", max_count, as_json, None, do_filter, config,
     )
 
 

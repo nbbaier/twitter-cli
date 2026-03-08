@@ -30,11 +30,14 @@ dependencies = [
     "click>=8.0",
     "rich>=13.0",
     "PyYAML>=6.0",
-    "xclienttransaction>=1.0.1",
-    "requests>=2.32.4",
 ]
 
 [project.optional-dependencies]
+transaction = [
+    "xclienttransaction>=1.0.1",
+    "requests>=2.32.4",
+    "beautifulsoup4>=4.12",
+]
 dev = [
     "pytest>=8.0",
     "ruff>=0.8",

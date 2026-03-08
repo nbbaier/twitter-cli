@@ -845,10 +845,7 @@ dependencies = [
     { name = "click", version = "8.1.8", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
     { name = "click", version = "8.3.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
     { name = "pyyaml" },
-    { name = "requests", version = "2.32.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.9'" },
-    { name = "requests", version = "2.32.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9'" },
     { name = "rich" },
-    { name = "xclienttransaction" },
 ]
 
 [package.optional-dependencies]
@@ -858,19 +855,26 @@ dev = [
     { name = "pytest", version = "9.0.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
     { name = "ruff" },
 ]
+transaction = [
+    { name = "beautifulsoup4" },
+    { name = "requests", version = "2.32.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.9'" },
+    { name = "requests", version = "2.32.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9'" },
+    { name = "xclienttransaction" },
+]
 
 [package.metadata]
 requires-dist = [
+    { name = "beautifulsoup4", marker = "extra == 'transaction'", specifier = ">=4.12" },
     { name = "browser-cookie3", specifier = ">=0.19" },
     { name = "click", specifier = ">=8.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
     { name = "pyyaml", specifier = ">=6.0" },
-    { name = "requests", specifier = ">=2.32.4" },
+    { name = "requests", marker = "extra == 'transaction'", specifier = ">=2.32.4" },
     { name = "rich", specifier = ">=13.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.8" },
-    { name = "xclienttransaction", specifier = ">=1.0.1" },
+    { name = "xclienttransaction", marker = "extra == 'transaction'", specifier = ">=1.0.1" },
 ]
-provides-extras = ["dev"]
+provides-extras = ["transaction", "dev"]
 
 [[package]]
 name = "typing-extensions"
