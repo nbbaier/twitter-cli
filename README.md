@@ -34,8 +34,13 @@ A terminal-first CLI for Twitter/X: read timelines, bookmarks, and user profiles
 - Retweet / Unretweet: manage retweets
 - Bookmark: favorite/unfavorite
 
-**Auth:**
+**Auth & Anti-Detection:**
 - Cookie auth: use browser cookies or environment variables
+- Full cookie forwarding: extracts ALL browser cookies for true browser fingerprint
+- TLS fingerprint impersonation: `curl_cffi` with Chrome 133 JA3/HTTP2
+- `x-client-transaction-id` header generation
+- Request timing jitter to avoid pattern detection
+- Proxy support via `TWITTER_PROXY` environment variable
 
 ### Installation
 
@@ -115,10 +120,26 @@ twitter unfavorite 1234567890
 
 twitter-cli uses this auth priority:
 
-1. Environment variables: `TWITTER_AUTH_TOKEN` + `TWITTER_CT0`
-2. Browser cookies: auto-extract from Chrome/Edge/Firefox/Brave
+1. **Environment variables**: `TWITTER_AUTH_TOKEN` + `TWITTER_CT0`
+2. **Browser cookies** (recommended): auto-extract from Chrome/Edge/Firefox/Brave
+
+Browser extraction is recommended — it forwards ALL Twitter cookies (not just `auth_token` + `ct0`), making requests indistinguishable from real browser traffic.
 
 After loading cookies, the CLI performs lightweight verification. Commands that require account access fail fast on clear auth errors (`401/403`).
+
+### Proxy Support
+
+Set `TWITTER_PROXY` to route all requests through a proxy:
+
+```bash
+# HTTP proxy
+export TWITTER_PROXY=http://127.0.0.1:7890
+
+# SOCKS5 proxy
+export TWITTER_PROXY=socks5://127.0.0.1:1080
+```
+
+Using a proxy is **strongly recommended** to avoid IP-based rate limiting.
 
 ### Configuration
 
@@ -142,7 +163,7 @@ filter:
     views_log: 0.5
 
 rateLimit:
-  requestDelay: 1.5     # seconds between paginated requests
+  requestDelay: 2.5     # base delay between requests (randomized ×0.7–1.5)
   maxRetries: 3          # retry count on rate limit (429)
   retryBaseDelay: 5.0    # base delay for exponential backoff
   maxCount: 200          # hard cap on fetched items
@@ -168,6 +189,14 @@ Mode behavior:
 - `mode: "topN"` keeps the highest `topN` tweets by score
 - `mode: "score"` keeps tweets where `score >= minScore`
 - `mode: "all"` returns all tweets after sorting by score
+
+### Best Practices (Avoiding Bans)
+
+- **Use a proxy** — set `TWITTER_PROXY` to avoid direct IP exposure
+- **Keep request volumes low** — use `--max 20` instead of `--max 500`
+- **Don't run too frequently** — each startup initializes a browser session
+- **Use browser cookie extraction** — provides full cookie fingerprint
+- **Avoid datacenter IPs** — residential proxies are much safer
 
 ### Troubleshooting
 
@@ -258,8 +287,13 @@ After installation, OpenClaw can call `twitter-cli` commands directly.
 - 转推 / 取消转推
 - 收藏 / 取消收藏：favorite/unfavorite
 
-- 可选筛选：按 engagement score 排序
+**认证与反风控:**
 - Cookie 认证：支持环境变量和浏览器自动提取
+- 完整 Cookie 转发：提取浏览器中所有 Twitter Cookie
+- TLS 指纹伪装：`curl_cffi` Chrome 133 JA3/HTTP2
+- `x-client-transaction-id` 请求头生成
+- 请求时序随机化（jitter）
+- 代理支持：`TWITTER_PROXY` 环境变量
 
 ### 安装
 
@@ -312,8 +346,22 @@ twitter unfavorite 1234567890
 
 认证优先级：
 
-1. `TWITTER_AUTH_TOKEN` + `TWITTER_CT0`
-2. 浏览器 Cookie 自动提取（Chrome/Edge/Firefox/Brave）
+1. **环境变量**：`TWITTER_AUTH_TOKEN` + `TWITTER_CT0`
+2. **浏览器提取**（推荐）：Chrome/Edge/Firefox/Brave 全量 Cookie 提取
+
+推荐使用浏览器提取方式，会转发所有 Twitter Cookie，让请求和真实浏览器完全一致。
+
+### 代理支持
+
+设置 `TWITTER_PROXY` 环境变量即可：
+
+```bash
+export TWITTER_PROXY=http://127.0.0.1:7890
+# 或 SOCKS5
+export TWITTER_PROXY=socks5://127.0.0.1:1080
+```
+
+**强烈建议使用代理**，避免 IP 维度的风控。
 
 ### 筛选算法
 
@@ -341,10 +389,14 @@ score = likes_w * likes
 - 报错 `Cookie expired or invalid`：Cookie 过期，重新登录后重试。
 - 报错 `Twitter API error 404`：通常是 queryId 轮换，重试即可。
 
-### 注意事项
+### 使用建议（防封号）
 
-- Cookie 登录有平台风控风险，建议使用专用账号。
-- Cookie 仅在本地使用，不会被本工具上传。
+- **使用代理** — 设置 `TWITTER_PROXY`，避免裸 IP 直连
+- **控制请求量** — 用 `--max 20` 而不是 `--max 500`
+- **避免频繁启动** — 每次启动都会初始化浏览器会话
+- **使用浏览器 Cookie 提取** — 提供完整 Cookie 指纹
+- **避免数据中心 IP** — 住宅代理更安全
+- Cookie 仅在本地使用，不会被本工具上传
 
 ### 作为 AI Agent Skill 使用
 
