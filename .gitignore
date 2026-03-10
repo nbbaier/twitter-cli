@@ -6,4 +6,5 @@ build/
 .venv/
 .env
 *.json
+!tests/fixtures/*.json
 !config.yaml
