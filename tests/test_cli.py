@@ -88,3 +88,109 @@ def test_cli_bookmark_alias_works(monkeypatch) -> None:
 
     assert result.exit_code == 0
     assert calls == ["123"]
+
+
+def test_cli_whoami_command(monkeypatch) -> None:
+    from twitter_cli.models import UserProfile
+
+    class FakeClient:
+        def fetch_me(self) -> UserProfile:
+            return UserProfile(id="42", name="Test User", screen_name="testuser")
+
+    monkeypatch.setattr("twitter_cli.cli._get_client", lambda config=None: FakeClient())
+    runner = CliRunner()
+
+    result = runner.invoke(cli, ["whoami"])
+    assert result.exit_code == 0
+
+    result_json = runner.invoke(cli, ["whoami", "--json"])
+    assert result_json.exit_code == 0
+    assert '"screenName": "testuser"' in result_json.output
+
+
+def test_cli_reply_command(monkeypatch) -> None:
+    calls = []
+
+    class FakeClient:
+        def create_tweet(self, text: str, reply_to_id=None) -> str:
+            calls.append({"text": text, "reply_to_id": reply_to_id})
+            return "999"
+
+    monkeypatch.setattr("twitter_cli.cli._get_client", lambda config=None: FakeClient())
+    runner = CliRunner()
+
+    result = runner.invoke(cli, ["reply", "12345", "Nice tweet!"])
+    assert result.exit_code == 0
+    assert calls[0]["reply_to_id"] == "12345"
+    assert calls[0]["text"] == "Nice tweet!"
+
+
+def test_cli_quote_command(monkeypatch) -> None:
+    calls = []
+
+    class FakeClient:
+        def quote_tweet(self, tweet_id: str, text: str) -> str:
+            calls.append({"tweet_id": tweet_id, "text": text})
+            return "888"
+
+    monkeypatch.setattr("twitter_cli.cli._get_client", lambda config=None: FakeClient())
+    runner = CliRunner()
+
+    result = runner.invoke(cli, ["quote", "12345", "Interesting!"])
+    assert result.exit_code == 0
+    assert calls[0]["tweet_id"] == "12345"
+    assert calls[0]["text"] == "Interesting!"
+
+
+def test_cli_follow_command(monkeypatch) -> None:
+    from twitter_cli.models import UserProfile
+    actions = []
+
+    class FakeClient:
+        def fetch_user(self, screen_name: str) -> UserProfile:
+            return UserProfile(id="42", name="Alice", screen_name=screen_name)
+
+        def follow_user(self, user_id: str) -> bool:
+            actions.append(("follow", user_id))
+            return True
+
+    monkeypatch.setattr("twitter_cli.cli._get_client", lambda config=None: FakeClient())
+    runner = CliRunner()
+
+    result = runner.invoke(cli, ["follow", "alice"])
+    assert result.exit_code == 0
+    assert actions == [("follow", "42")]
+
+
+def test_cli_unfollow_command(monkeypatch) -> None:
+    from twitter_cli.models import UserProfile
+    actions = []
+
+    class FakeClient:
+        def fetch_user(self, screen_name: str) -> UserProfile:
+            return UserProfile(id="42", name="Alice", screen_name=screen_name)
+
+        def unfollow_user(self, user_id: str) -> bool:
+            actions.append(("unfollow", user_id))
+            return True
+
+    monkeypatch.setattr("twitter_cli.cli._get_client", lambda config=None: FakeClient())
+    runner = CliRunner()
+
+    result = runner.invoke(cli, ["unfollow", "alice"])
+    assert result.exit_code == 0
+    assert actions == [("unfollow", "42")]
+
+
+def test_cli_compact_mode(tmp_path, tweet_factory) -> None:
+    json_path = tmp_path / "tweets.json"
+    json_path.write_text(tweets_to_json([tweet_factory("1")]), encoding="utf-8")
+
+    runner = CliRunner()
+    result = runner.invoke(cli, ["-c", "feed", "--input", str(json_path)])
+    assert result.exit_code == 0
+    # Compact output should have "author" field with @ prefix
+    assert '"@alice"' in result.output
+    # Compact output should NOT have full metrics keys
+    assert '"metrics"' not in result.output
+

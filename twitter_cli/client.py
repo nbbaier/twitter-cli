@@ -575,6 +575,76 @@ class TwitterClient:
         self._write_delay()
         return True
 
+    def fetch_me(self):
+        # type: () -> UserProfile
+        """Fetch the currently authenticated user's profile."""
+        url = "https://x.com/i/api/1.1/account/multi/list.json"
+        data = self._api_get(url)
+        if isinstance(data, list) and data:
+            user_data = data[0].get("user", {})
+            if user_data:
+                return UserProfile(
+                    id=str(user_data.get("id_str", "")),
+                    name=user_data.get("name", ""),
+                    screen_name=user_data.get("screen_name", ""),
+                    bio=user_data.get("description", ""),
+                    location=user_data.get("location", ""),
+                    url=_deep_get(user_data, "entities", "url", "urls", 0, "expanded_url") or "",
+                    followers_count=_parse_int(user_data.get("followers_count"), 0),
+                    following_count=_parse_int(user_data.get("friends_count"), 0),
+                    tweets_count=_parse_int(user_data.get("statuses_count"), 0),
+                    likes_count=_parse_int(user_data.get("favourites_count"), 0),
+                    verified=bool(user_data.get("verified", False)),
+                    profile_image_url=user_data.get("profile_image_url_https", ""),
+                    created_at=user_data.get("created_at", ""),
+                )
+        raise RuntimeError("Failed to fetch current user info")
+
+    def quote_tweet(self, tweet_id, text):
+        # type: (str, str) -> str
+        """Quote-tweet a tweet.  Returns the new tweet ID."""
+        variables = {
+            "tweet_text": text,
+            "attachment_url": "https://x.com/i/status/%s" % tweet_id,
+            "media": {"media_entities": [], "possibly_sensitive": False},
+            "semantic_annotation_ids": [],
+            "dark_request": False,
+        }
+        data = self._graphql_post("CreateTweet", variables, FEATURES)
+        self._write_delay()
+        result = _deep_get(data, "data", "create_tweet", "tweet_results", "result")
+        if result:
+            return result.get("rest_id", "")
+        raise RuntimeError("Failed to create quote tweet")
+
+    def follow_user(self, user_id):
+        # type: (str) -> bool
+        """Follow a user by user ID.  Returns True on success."""
+        url = "https://x.com/i/api/1.1/friendships/create.json"
+        body = {"user_id": user_id}
+        headers = self._build_headers(url=url, method="POST")
+        headers["Content-Type"] = "application/x-www-form-urlencoded"
+        session = _get_cffi_session()
+        response = session.post(url, headers=headers, data=body, timeout=30)
+        if response.status_code >= 400:
+            raise RuntimeError("Failed to follow user: HTTP %d" % response.status_code)
+        self._write_delay()
+        return True
+
+    def unfollow_user(self, user_id):
+        # type: (str) -> bool
+        """Unfollow a user by user ID.  Returns True on success."""
+        url = "https://x.com/i/api/1.1/friendships/destroy.json"
+        body = {"user_id": user_id}
+        headers = self._build_headers(url=url, method="POST")
+        headers["Content-Type"] = "application/x-www-form-urlencoded"
+        session = _get_cffi_session()
+        response = session.post(url, headers=headers, data=body, timeout=30)
+        if response.status_code >= 400:
+            raise RuntimeError("Failed to unfollow user: HTTP %d" % response.status_code)
+        self._write_delay()
+        return True
+
     def _fetch_timeline(self, operation_name, count, get_instructions, extra_variables=None, override_base_variables=False, field_toggles=None):
         # type: (str, int, Callable[[Any], Any], Optional[Dict[str, Any]], bool, Optional[Dict[str, Any]]) -> List[Tweet]
         """Generic timeline fetcher with pagination and deduplication.

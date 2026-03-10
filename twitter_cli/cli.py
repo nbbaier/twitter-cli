@@ -12,13 +12,17 @@ Read commands:
     twitter list <id>                 # list timeline
     twitter followers <handle>        # followers list
     twitter following <handle>        # following list
+    twitter whoami                    # current user profile
 
 Write commands:
     twitter post "text"               # post a tweet
+    twitter reply <id> "text"         # reply to a tweet
+    twitter quote <id> "text"         # quote-tweet
     twitter delete <id>               # delete a tweet
     twitter like/unlike <id>          # like/unlike
     twitter bookmark/unbookmark <id>  # bookmark/unbookmark
     twitter retweet/unretweet <id>    # retweet/unretweet
+    twitter follow/unfollow <handle>  # follow/unfollow
 """
 
 from __future__ import annotations
@@ -46,7 +50,13 @@ from .formatter import (
     print_user_profile,
     print_user_table,
 )
-from .serialization import tweets_from_json, tweets_to_json, user_profile_to_dict, users_to_json
+from .serialization import (
+    tweets_from_json,
+    tweets_to_compact_json,
+    tweets_to_json,
+    user_profile_to_dict,
+    users_to_json,
+)
 
 
 console = Console(stderr=True)
@@ -160,15 +170,19 @@ def _apply_filter(tweets, do_filter, config):
 
 @click.group()
 @click.option("--verbose", "-v", is_flag=True, help="Enable debug logging.")
+@click.option("--compact", "-c", is_flag=True, help="Compact output (minimal fields, LLM-friendly).")
 @click.version_option(version=__version__)
-def cli(verbose):
-    # type: (bool) -> None
+@click.pass_context
+def cli(ctx, verbose, compact):
+    # type: (Any, bool, bool) -> None
     """twitter — Twitter/X CLI tool 🐦"""
     _setup_logging(verbose)
+    ctx.ensure_object(dict)
+    ctx.obj["compact"] = compact
 
 
-def _fetch_and_display(fetch_fn, label, emoji, max_count, as_json, output_file, do_filter, config=None):
-    # type: (Any, str, str, Optional[int], bool, Optional[str], bool, Optional[dict]) -> None
+def _fetch_and_display(fetch_fn, label, emoji, max_count, as_json, output_file, do_filter, config=None, compact=False):
+    # type: (Any, str, str, Optional[int], bool, Optional[str], bool, Optional[dict], bool) -> None
     """Common fetch-filter-display logic for timeline-like commands."""
     if config is None:
         config = load_config()
@@ -188,6 +202,10 @@ def _fetch_and_display(fetch_fn, label, emoji, max_count, as_json, output_file, 
         Path(output_file).write_text(tweets_to_json(filtered), encoding="utf-8")
         console.print("💾 Saved to %s\n" % output_file)
 
+    if compact:
+        click.echo(tweets_to_compact_json(filtered))
+        return
+
     if as_json:
         click.echo(tweets_to_json(filtered))
         return
@@ -196,8 +214,8 @@ def _fetch_and_display(fetch_fn, label, emoji, max_count, as_json, output_file, 
     console.print()
 
 
-def _run_bookmarks_command(max_count, as_json, output_file, do_filter):
-    # type: (Optional[int], bool, Optional[str], bool) -> None
+def _run_bookmarks_command(max_count, as_json, output_file, do_filter, compact=False):
+    # type: (Optional[int], bool, Optional[str], bool, bool) -> None
     config = load_config()
 
     def _run():
@@ -211,6 +229,7 @@ def _run_bookmarks_command(max_count, as_json, output_file, do_filter):
             output_file,
             do_filter,
             config,
+            compact=compact,
         )
 
     _run_guarded(_run)
@@ -230,9 +249,11 @@ def _run_bookmarks_command(max_count, as_json, output_file, do_filter):
 @click.option("--input", "-i", "input_file", type=str, default=None, help="Load tweets from JSON file.")
 @click.option("--output", "-o", "output_file", type=str, default=None, help="Save filtered tweets to JSON file.")
 @click.option("--filter", "do_filter", is_flag=True, help="Enable score-based filtering.")
-def feed(feed_type, max_count, as_json, input_file, output_file, do_filter):
-    # type: (str, Optional[int], bool, Optional[str], Optional[str], bool) -> None
+@click.pass_context
+def feed(ctx, feed_type, max_count, as_json, input_file, output_file, do_filter):
+    # type: (Any, str, Optional[int], bool, Optional[str], Optional[str], bool) -> None
     """Fetch home timeline with optional filtering."""
+    compact = ctx.obj.get("compact", False)
     config = load_config()
     try:
         if input_file:
@@ -260,6 +281,10 @@ def feed(feed_type, max_count, as_json, input_file, output_file, do_filter):
         Path(output_file).write_text(tweets_to_json(filtered), encoding="utf-8")
         console.print("💾 Saved filtered tweets to %s\n" % output_file)
 
+    if compact:
+        click.echo(tweets_to_compact_json(filtered))
+        return
+
     if as_json:
         click.echo(tweets_to_json(filtered))
         return
@@ -275,10 +300,11 @@ def feed(feed_type, max_count, as_json, input_file, output_file, do_filter):
 @click.option("--json", "as_json", is_flag=True, help="Output as JSON.")
 @click.option("--output", "-o", "output_file", type=str, default=None, help="Save tweets to JSON file.")
 @click.option("--filter", "do_filter", is_flag=True, help="Enable score-based filtering.")
-def favorites(max_count, as_json, output_file, do_filter):
-    # type: (Optional[int], bool, Optional[str], bool) -> None
+@click.pass_context
+def favorites(ctx, max_count, as_json, output_file, do_filter):
+    # type: (Any, Optional[int], bool, Optional[str], bool) -> None
     """Fetch bookmarked (favorite) tweets."""
-    _run_bookmarks_command(max_count, as_json, output_file, do_filter)
+    _run_bookmarks_command(max_count, as_json, output_file, do_filter, compact=ctx.obj.get("compact", False))
 
 
 @cli.command(name="bookmarks")
@@ -286,10 +312,11 @@ def favorites(max_count, as_json, output_file, do_filter):
 @click.option("--json", "as_json", is_flag=True, help="Output as JSON.")
 @click.option("--output", "-o", "output_file", type=str, default=None, help="Save tweets to JSON file.")
 @click.option("--filter", "do_filter", is_flag=True, help="Enable score-based filtering.")
-def bookmarks(max_count, as_json, output_file, do_filter):
-    # type: (Optional[int], bool, Optional[str], bool) -> None
+@click.pass_context
+def bookmarks(ctx, max_count, as_json, output_file, do_filter):
+    # type: (Any, Optional[int], bool, Optional[str], bool) -> None
     """Fetch bookmarked tweets."""
-    _run_bookmarks_command(max_count, as_json, output_file, do_filter)
+    _run_bookmarks_command(max_count, as_json, output_file, do_filter, compact=ctx.obj.get("compact", False))
 
 
 @cli.command()
@@ -319,10 +346,12 @@ def user(screen_name, as_json):
 @click.option("--max", "-n", "max_count", type=int, default=None, help="Max number of tweets to fetch.")
 @click.option("--json", "as_json", is_flag=True, help="Output as JSON.")
 @click.option("--output", "-o", "output_file", type=str, default=None, help="Save tweets to JSON file.")
-def user_posts(screen_name, max_count, as_json, output_file):
-    # type: (str, int, bool, Optional[str]) -> None
+@click.pass_context
+def user_posts(ctx, screen_name, max_count, as_json, output_file):
+    # type: (Any, str, int, bool, Optional[str]) -> None
     """List a user's tweets. SCREEN_NAME is the @handle (without @)."""
     screen_name = screen_name.lstrip("@")
+    compact = ctx.obj.get("compact", False)
     config = load_config()
     def _run():
         client = _get_client(config)
@@ -331,6 +360,7 @@ def user_posts(screen_name, max_count, as_json, output_file):
         _fetch_and_display(
             lambda count: client.fetch_user_tweets(profile.id, count),
             "@%s tweets" % screen_name, "📝", max_count, as_json, output_file, False, config,
+            compact=compact,
         )
     _run_guarded(_run)
 
@@ -349,15 +379,18 @@ def user_posts(screen_name, max_count, as_json, output_file):
 @click.option("--json", "as_json", is_flag=True, help="Output as JSON.")
 @click.option("--output", "-o", "output_file", type=str, default=None, help="Save tweets to JSON file.")
 @click.option("--filter", "do_filter", is_flag=True, help="Enable score-based filtering.")
-def search(query, product, max_count, as_json, output_file, do_filter):
-    # type: (str, str, int, bool, Optional[str], bool) -> None
+@click.pass_context
+def search(ctx, query, product, max_count, as_json, output_file, do_filter):
+    # type: (Any, str, str, int, bool, Optional[str], bool) -> None
     """Search tweets by QUERY string."""
+    compact = ctx.obj.get("compact", False)
     config = load_config()
     def _run():
         client = _get_client(config)
         _fetch_and_display(
             lambda count: client.fetch_search(query, count, product),
             "'%s' (%s)" % (query, product), "🔍", max_count, as_json, output_file, do_filter, config,
+            compact=compact,
         )
     _run_guarded(_run)
 
@@ -368,10 +401,12 @@ def search(query, product, max_count, as_json, output_file, do_filter):
 @click.option("--json", "as_json", is_flag=True, help="Output as JSON.")
 @click.option("--output", "-o", "output_file", type=str, default=None, help="Save tweets to JSON file.")
 @click.option("--filter", "do_filter", is_flag=True, help="Enable score-based filtering.")
-def likes(screen_name, max_count, as_json, output_file, do_filter):
-    # type: (str, int, bool, Optional[str], bool) -> None
+@click.pass_context
+def likes(ctx, screen_name, max_count, as_json, output_file, do_filter):
+    # type: (Any, str, int, bool, Optional[str], bool) -> None
     """Show tweets liked by a user. SCREEN_NAME is the @handle (without @)."""
     screen_name = screen_name.lstrip("@")
+    compact = ctx.obj.get("compact", False)
     config = load_config()
     def _run():
         client = _get_client(config)
@@ -380,6 +415,7 @@ def likes(screen_name, max_count, as_json, output_file, do_filter):
         _fetch_and_display(
             lambda count: client.fetch_user_likes(profile.id, count),
             "@%s likes" % screen_name, "❤️", max_count, as_json, output_file, do_filter, config,
+            compact=compact,
         )
     _run_guarded(_run)
 
@@ -388,9 +424,11 @@ def likes(screen_name, max_count, as_json, output_file, do_filter):
 @click.argument("tweet_id")
 @click.option("--max", "-n", "max_count", type=int, default=None, help="Max replies to fetch.")
 @click.option("--json", "as_json", is_flag=True, help="Output as JSON.")
-def tweet(tweet_id, max_count, as_json):
-    # type: (str, int, bool) -> None
+@click.pass_context
+def tweet(ctx, tweet_id, max_count, as_json):
+    # type: (Any, str, int, bool) -> None
     """View a tweet and its replies. TWEET_ID is the numeric tweet ID or full URL."""
+    compact = ctx.obj.get("compact", False)
     tweet_id = _normalize_tweet_id(tweet_id)
     config = load_config()
     try:
@@ -402,6 +440,10 @@ def tweet(tweet_id, max_count, as_json):
         console.print("✅ Fetched %d tweets in %.1fs\n" % (len(tweets), elapsed))
     except RuntimeError as exc:
         _exit_with_error(exc)
+
+    if compact:
+        click.echo(tweets_to_compact_json(tweets))
+        return
 
     if as_json:
         click.echo(tweets_to_json(tweets))
@@ -420,15 +462,18 @@ def tweet(tweet_id, max_count, as_json):
 @click.option("--max", "-n", "max_count", type=int, default=None, help="Max tweets to fetch.")
 @click.option("--json", "as_json", is_flag=True, help="Output as JSON.")
 @click.option("--filter", "do_filter", is_flag=True, help="Enable score-based filtering.")
-def list_timeline(list_id, max_count, as_json, do_filter):
-    # type: (str, int, bool, bool) -> None
+@click.pass_context
+def list_timeline(ctx, list_id, max_count, as_json, do_filter):
+    # type: (Any, str, int, bool, bool) -> None
     """Fetch tweets from a Twitter List. LIST_ID is the numeric list ID."""
+    compact = ctx.obj.get("compact", False)
     config = load_config()
     def _run():
         client = _get_client(config)
         _fetch_and_display(
             lambda count: client.fetch_list_timeline(list_id, count),
             "list %s" % list_id, "📋", max_count, as_json, None, do_filter, config,
+            compact=compact,
         )
     _run_guarded(_run)
 
@@ -522,6 +567,98 @@ def post(text, reply_to):
         tweet_id = client.create_tweet(text, reply_to_id=reply_to)
         console.print("[green]✅ Tweet posted![/green]")
         console.print("🔗 https://x.com/i/status/%s" % tweet_id)
+    except RuntimeError as exc:
+        _exit_with_error(exc)
+
+
+@cli.command(name="reply")
+@click.argument("tweet_id")
+@click.argument("text")
+def reply_tweet(tweet_id, text):
+    # type: (str, str) -> None
+    """Reply to a tweet. TWEET_ID is the tweet to reply to, TEXT is the reply content."""
+    tweet_id = _normalize_tweet_id(tweet_id)
+    config = load_config()
+    try:
+        client = _get_client(config)
+        console.print("💬 Replying to %s..." % tweet_id)
+        new_id = client.create_tweet(text, reply_to_id=tweet_id)
+        console.print("[green]✅ Reply posted![/green]")
+        console.print("🔗 https://x.com/i/status/%s" % new_id)
+    except RuntimeError as exc:
+        _exit_with_error(exc)
+
+
+@cli.command(name="quote")
+@click.argument("tweet_id")
+@click.argument("text")
+def quote_tweet(tweet_id, text):
+    # type: (str, str) -> None
+    """Quote-tweet a tweet. TWEET_ID is the tweet to quote, TEXT is the commentary."""
+    tweet_id = _normalize_tweet_id(tweet_id)
+    config = load_config()
+    try:
+        client = _get_client(config)
+        console.print("🔄 Quoting tweet %s..." % tweet_id)
+        new_id = client.quote_tweet(tweet_id, text)
+        console.print("[green]✅ Quote tweet posted![/green]")
+        console.print("🔗 https://x.com/i/status/%s" % new_id)
+    except RuntimeError as exc:
+        _exit_with_error(exc)
+
+
+@cli.command(name="whoami")
+@click.option("--json", "as_json", is_flag=True, help="Output as JSON.")
+def whoami(as_json):
+    # type: (bool,) -> None
+    """Show the currently authenticated user's profile."""
+    config = load_config()
+    try:
+        client = _get_client(config)
+        console.print("👤 Fetching current user...")
+        profile = client.fetch_me()
+    except RuntimeError as exc:
+        _exit_with_error(exc)
+
+    if as_json:
+        click.echo(json.dumps(user_profile_to_dict(profile), ensure_ascii=False, indent=2))
+    else:
+        console.print()
+        print_user_profile(profile, console)
+
+
+@cli.command(name="follow")
+@click.argument("screen_name")
+def follow_user(screen_name):
+    # type: (str,) -> None
+    """Follow a user. SCREEN_NAME is the @handle (without @)."""
+    screen_name = screen_name.lstrip("@")
+    config = load_config()
+    try:
+        client = _get_client(config)
+        console.print("👤 Looking up @%s..." % screen_name)
+        profile = client.fetch_user(screen_name)
+        console.print("➕ Following @%s..." % screen_name)
+        client.follow_user(profile.id)
+        console.print("[green]✅ Now following @%s[/green]" % screen_name)
+    except RuntimeError as exc:
+        _exit_with_error(exc)
+
+
+@cli.command(name="unfollow")
+@click.argument("screen_name")
+def unfollow_user(screen_name):
+    # type: (str,) -> None
+    """Unfollow a user. SCREEN_NAME is the @handle (without @)."""
+    screen_name = screen_name.lstrip("@")
+    config = load_config()
+    try:
+        client = _get_client(config)
+        console.print("👤 Looking up @%s..." % screen_name)
+        profile = client.fetch_user(screen_name)
+        console.print("➖ Unfollowing @%s..." % screen_name)
+        client.unfollow_user(profile.id)
+        console.print("[green]✅ Unfollowed @%s[/green]" % screen_name)
     except RuntimeError as exc:
         _exit_with_error(exc)
 

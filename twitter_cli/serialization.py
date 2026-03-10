@@ -129,6 +129,36 @@ def tweets_to_json(tweets: Iterable[Tweet]) -> str:
     return json.dumps([tweet_to_dict(tweet) for tweet in tweets], ensure_ascii=False, indent=2)
 
 
+def tweet_to_compact_dict(tweet: Tweet) -> Dict[str, Any]:
+    """Convert a Tweet into a compact dict with minimal fields for LLM consumption."""
+    text = tweet.text.replace("\n", " ").strip()
+    if len(text) > 140:
+        text = text[:137] + "..."
+    # Short time: "Mar 07 05:51" from "Sat Mar 07 05:51:02 +0000 2026"
+    parts = tweet.created_at.split()
+    if len(parts) >= 4:
+        time_str = "%s %s %s" % (parts[1], parts[2], parts[3][:5])
+    else:
+        time_str = tweet.created_at
+    return {
+        "id": tweet.id,
+        "author": "@%s" % tweet.author.screen_name,
+        "text": text,
+        "likes": tweet.metrics.likes,
+        "rts": tweet.metrics.retweets,
+        "time": time_str,
+    }
+
+
+def tweets_to_compact_json(tweets: Iterable[Tweet]) -> str:
+    """Serialize Tweet objects to compact JSON (minimal fields for LLM/pipe usage)."""
+    return json.dumps(
+        [tweet_to_compact_dict(tweet) for tweet in tweets],
+        ensure_ascii=False,
+        indent=2,
+    )
+
+
 def user_profile_to_dict(user: UserProfile) -> Dict[str, Any]:
     """Convert a UserProfile dataclass into a JSON-safe dict."""
     return {

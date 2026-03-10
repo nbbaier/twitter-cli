@@ -20,3 +20,32 @@ def test_tweets_json_roundtrip(tweet_factory) -> None:
 
     assert [tweet.id for tweet in restored] == ["1", "2"]
     assert restored[1].lang == "zh"
+
+
+def test_compact_serialization(tweet_factory) -> None:
+    from twitter_cli.serialization import tweet_to_compact_dict, tweets_to_compact_json
+    import json
+
+    tweet = tweet_factory(
+        "42",
+        created_at="Sat Mar 07 05:51:02 +0000 2026",
+        text="A" * 200,
+    )
+    compact = tweet_to_compact_dict(tweet)
+
+    assert compact["id"] == "42"
+    assert compact["author"] == "@alice"
+    assert compact["time"] == "Mar 07 05:51"
+    assert len(compact["text"]) <= 140
+    assert compact["text"].endswith("...")
+    assert compact["likes"] == 10
+    assert compact["rts"] == 2
+    # Should only have 6 keys
+    assert set(compact.keys()) == {"id", "author", "text", "likes", "rts", "time"}
+
+    # Test batch serialization
+    raw = tweets_to_compact_json([tweet])
+    parsed = json.loads(raw)
+    assert len(parsed) == 1
+    assert parsed[0]["author"] == "@alice"
+
