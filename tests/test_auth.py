@@ -192,7 +192,14 @@ def test_verify_cookies_logs_attempt_summary_on_non_auth_failures(monkeypatch, c
 
 def test_iter_chrome_cookie_files_default_first(monkeypatch, tmp_path) -> None:
     """Default profile should be yielded first, then Profile N sorted."""
-    chrome_dir = tmp_path / "Google" / "Chrome"
+    # Create the correct platform-specific directory structure
+    if sys.platform == "darwin":
+        chrome_dir = tmp_path / "Library" / "Application Support" / "Google" / "Chrome"
+    elif sys.platform == "win32":
+        chrome_dir = tmp_path / "Google" / "Chrome" / "User Data"
+    else:
+        chrome_dir = tmp_path / ".config" / "Google" / "Chrome"
+
     (chrome_dir / "Default").mkdir(parents=True)
     (chrome_dir / "Default" / "Cookies").touch()
     (chrome_dir / "Profile 2").mkdir()
@@ -201,21 +208,9 @@ def test_iter_chrome_cookie_files_default_first(monkeypatch, tmp_path) -> None:
     (chrome_dir / "Profile 1" / "Cookies").touch()
 
     monkeypatch.delenv("TWITTER_CHROME_PROFILE", raising=False)
-
-    # Patch the platform root to use tmp_path
-    if sys.platform == "darwin":
-        monkeypatch.setenv("HOME", str(tmp_path))
-        monkeypatch.setattr(auth, "_CHROMIUM_BASE_DIRS", {"chrome": os.path.join("Google", "Chrome")})
-        # On macOS, root = ~/Library/Application Support/<base>
-        # We need to adjust: create the macOS path structure
-        mac_chrome = tmp_path / "Library" / "Application Support" / "Google" / "Chrome"
-        mac_chrome.mkdir(parents=True, exist_ok=True)
-        (mac_chrome / "Default").mkdir(exist_ok=True)
-        (mac_chrome / "Default" / "Cookies").touch()
-        (mac_chrome / "Profile 1").mkdir(exist_ok=True)
-        (mac_chrome / "Profile 1" / "Cookies").touch()
-        (mac_chrome / "Profile 2").mkdir(exist_ok=True)
-        (mac_chrome / "Profile 2" / "Cookies").touch()
+    monkeypatch.setenv("HOME", str(tmp_path))
+    if sys.platform == "win32":
+        monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
 
     paths = auth._iter_chrome_cookie_files("chrome")
 
