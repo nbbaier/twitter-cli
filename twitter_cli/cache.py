@@ -38,9 +38,14 @@ def _load_cache() -> Optional[List[dict]]:
         if not _CACHE_FILE.exists():
             return None
         payload = json.loads(_CACHE_FILE.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict):
+            return None
         if time.time() - payload.get("created_at", 0) > _TTL:
             return None
-        return payload.get("tweets", [])
+        entries = payload.get("tweets", [])
+        if not isinstance(entries, list):
+            return None
+        return [e for e in entries if isinstance(e, dict)]
     except (OSError, json.JSONDecodeError):
         return None
 
@@ -52,7 +57,8 @@ def get_tweet_id_by_index(index: int) -> Optional[str]:
         return None
     for entry in entries:
         if entry.get("index") == index:
-            return str(entry["id"])
+            tweet_id = entry.get("id")
+            return str(tweet_id) if tweet_id is not None else None
     return None
 
 

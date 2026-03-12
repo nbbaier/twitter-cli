@@ -704,6 +704,12 @@ def tweet(ctx, tweet_id, max_count, full_text, as_json, as_yaml):
     except RuntimeError as exc:
         _exit_with_error(exc)
 
+    _emit_tweet_detail(tweets, compact=compact, as_json=as_json, as_yaml=as_yaml, full_text=full_text)
+
+
+def _emit_tweet_detail(tweets, compact, as_json, as_yaml, full_text):
+    # type: (list, bool, bool, bool, bool) -> None
+    """Render tweet detail + replies in the requested output format."""
     if compact:
         click.echo(tweets_to_compact_json(tweets))
         return
@@ -720,7 +726,7 @@ def tweet(ctx, tweet_id, max_count, full_text, as_json, as_yaml):
 
 
 @cli.command()
-@click.argument("index", type=int)
+@click.argument("index", type=click.IntRange(1))
 @click.option("--max", "-n", "max_count", type=int, default=None, help="Max replies to fetch.")
 @click.option("--full-text", is_flag=True, help="Show full reply text in table output.")
 @structured_output_options
@@ -735,7 +741,8 @@ def show(ctx, index, max_count, full_text, as_json, as_yaml):
         cache_size = get_cache_size()
         if cache_size == 0:
             raise click.UsageError(
-                "No cached results found. Run `twitter feed` or `twitter search` first."
+                "No cached results found. Run `twitter feed`, `twitter search`, "
+                "`twitter bookmarks`, or another list command first."
             )
         raise click.UsageError(
             "Index %d is out of range (cache has %d tweets)." % (index, cache_size)
@@ -755,19 +762,7 @@ def show(ctx, index, max_count, full_text, as_json, as_yaml):
     except RuntimeError as exc:
         _exit_with_error(exc)
 
-    if compact:
-        click.echo(tweets_to_compact_json(tweets))
-        return
-
-    if emit_structured(tweets_to_data(tweets), as_json=as_json, as_yaml=as_yaml):
-        return
-
-    if tweets:
-        print_tweet_detail(tweets[0], console)
-        if len(tweets) > 1:
-            console.print("\n💬 Replies:")
-            print_tweet_table(tweets[1:], console, title="💬 Replies — %d" % (len(tweets) - 1), full_text=full_text)
-    console.print()
+    _emit_tweet_detail(tweets, compact=compact, as_json=as_json, as_yaml=as_yaml, full_text=full_text)
 
 
 @cli.command()
