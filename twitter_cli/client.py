@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import logging
 import math
+import mimetypes
 import os
 import random
 import time
@@ -33,6 +35,7 @@ from .constants import (
     sync_chrome_version,
 )
 from .exceptions import (
+    MediaUploadError,
     NotFoundError,
     TwitterAPIError,
 )
@@ -394,6 +397,10 @@ class TwitterClient:
 
     # ── Write operations ─────────────────────────────────────────────
 
+    # Supported image MIME types and max file size (5 MB)
+    _SUPPORTED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
+    _MAX_IMAGE_SIZE = 5 * 1024 * 1024  # 5 MB
+
     def _write_delay(self):
         # type: () -> None
         """Sleep a random interval after write operations to avoid rate limits."""
@@ -401,12 +408,99 @@ class TwitterClient:
         logger.debug("Write operation delay: %.1fs", delay)
         time.sleep(delay)
 
-    def create_tweet(self, text, reply_to_id=None):
-        # type: (str, Optional[str]) -> str
-        """Post a new tweet.  Returns the new tweet ID."""
+    def upload_media(self, file_path):
+        # type: (str) -> str
+        """Upload an image file to Twitter.  Returns the media_id string.
+
+        Uses Twitter's chunked upload API (INIT → APPEND → FINALIZE).
+        Supports JPEG, PNG, GIF, and WebP images up to 5 MB.
+        """
+        if not os.path.isfile(file_path):
+            raise MediaUploadError("File not found: %s" % file_path)
+
+        file_size = os.path.getsize(file_path)
+        if file_size > self._MAX_IMAGE_SIZE:
+            raise MediaUploadError(
+                "File too large: %.1f MB (max %.0f MB)"
+                % (file_size / (1024 * 1024), self._MAX_IMAGE_SIZE / (1024 * 1024))
+            )
+
+        media_type = mimetypes.guess_type(file_path)[0] or ""
+        if media_type not in self._SUPPORTED_IMAGE_TYPES:
+            raise MediaUploadError(
+                "Unsupported image format: %s (supported: jpeg, png, gif, webp)" % media_type
+            )
+
+        upload_url = "https://upload.twitter.com/i/media/upload.json"
+        session = _get_cffi_session()
+
+        # ── INIT ─────────────────────────────────────────────────────
+        headers = self._build_headers(url=upload_url, method="POST")
+        headers["Content-Type"] = "application/x-www-form-urlencoded"
+        init_data = {
+            "command": "INIT",
+            "total_bytes": str(file_size),
+            "media_type": media_type,
+        }
+        resp = session.post(upload_url, headers=headers, data=init_data, timeout=30)
+        if resp.status_code >= 400:
+            raise MediaUploadError("INIT failed (HTTP %d): %s" % (resp.status_code, resp.text[:300]))
+        try:
+            init_result = json.loads(resp.text)
+        except (json.JSONDecodeError, ValueError):
+            raise MediaUploadError("INIT returned invalid JSON")
+        media_id = init_result.get("media_id_string", "")
+        if not media_id:
+            raise MediaUploadError("INIT did not return media_id")
+        logger.info("Media INIT: media_id=%s", media_id)
+
+        # ── APPEND ───────────────────────────────────────────────────
+        with open(file_path, "rb") as f:
+            media_data = base64.b64encode(f.read()).decode("ascii")
+
+        headers = self._build_headers(url=upload_url, method="POST")
+        # Remove JSON content-type — curl_cffi handles multipart encoding
+        headers.pop("Content-Type", None)
+        append_data = {
+            "command": "APPEND",
+            "media_id": media_id,
+            "segment_index": "0",
+            "media_data": media_data,
+        }
+        resp = session.post(upload_url, headers=headers, data=append_data, timeout=60)
+        if resp.status_code >= 400:
+            raise MediaUploadError("APPEND failed (HTTP %d): %s" % (resp.status_code, resp.text[:300]))
+        logger.info("Media APPEND: segment 0 uploaded")
+
+        # ── FINALIZE ─────────────────────────────────────────────────
+        headers = self._build_headers(url=upload_url, method="POST")
+        headers["Content-Type"] = "application/x-www-form-urlencoded"
+        finalize_data = {
+            "command": "FINALIZE",
+            "media_id": media_id,
+        }
+        resp = session.post(upload_url, headers=headers, data=finalize_data, timeout=30)
+        if resp.status_code >= 400:
+            raise MediaUploadError("FINALIZE failed (HTTP %d): %s" % (resp.status_code, resp.text[:300]))
+        logger.info("Media FINALIZE: media_id=%s ready", media_id)
+
+        return media_id
+
+    def create_tweet(self, text, reply_to_id=None, media_ids=None):
+        # type: (str, Optional[str], Optional[List[str]]) -> str
+        """Post a new tweet.  Returns the new tweet ID.
+
+        Args:
+            text: Tweet text content.
+            reply_to_id: Optional tweet ID to reply to.
+            media_ids: Optional list of media IDs (from upload_media) to attach.
+        """
+        media_entities = []
+        if media_ids:
+            media_entities = [{"media_id": mid, "tagged_users": []} for mid in media_ids]
         variables = {
             "tweet_text": text,
-            "media": {"media_entities": [], "possibly_sensitive": False},
+            "media": {"media_entities": media_entities, "possibly_sensitive": False},
             "semantic_annotation_ids": [],
             "dark_request": False,
         }  # type: Dict[str, Any]
@@ -526,13 +620,22 @@ class TwitterClient:
 
         raise TwitterAPIError(0, "Failed to fetch current user info")
 
-    def quote_tweet(self, tweet_id, text):
-        # type: (str, str) -> str
-        """Quote-tweet a tweet.  Returns the new tweet ID."""
+    def quote_tweet(self, tweet_id, text, media_ids=None):
+        # type: (str, str, Optional[List[str]]) -> str
+        """Quote-tweet a tweet.  Returns the new tweet ID.
+
+        Args:
+            tweet_id: The tweet ID to quote.
+            text: Commentary text.
+            media_ids: Optional list of media IDs (from upload_media) to attach.
+        """
+        media_entities = []
+        if media_ids:
+            media_entities = [{"media_id": mid, "tagged_users": []} for mid in media_ids]
         variables = {
             "tweet_text": text,
             "attachment_url": "https://x.com/i/status/%s" % tweet_id,
-            "media": {"media_entities": [], "possibly_sensitive": False},
+            "media": {"media_entities": media_entities, "possibly_sensitive": False},
             "semantic_annotation_ids": [],
             "dark_request": False,
         }

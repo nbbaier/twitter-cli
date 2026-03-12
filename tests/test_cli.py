@@ -321,7 +321,7 @@ def test_cli_reply_command(monkeypatch) -> None:
     calls = []
 
     class FakeClient:
-        def create_tweet(self, text: str, reply_to_id=None) -> str:
+        def create_tweet(self, text: str, reply_to_id=None, media_ids=None) -> str:
             calls.append({"text": text, "reply_to_id": reply_to_id})
             return "999"
 
@@ -338,7 +338,7 @@ def test_cli_quote_command(monkeypatch) -> None:
     calls = []
 
     class FakeClient:
-        def quote_tweet(self, tweet_id: str, text: str) -> str:
+        def quote_tweet(self, tweet_id: str, text: str, media_ids=None) -> str:
             calls.append({"tweet_id": tweet_id, "text": text})
             return "888"
 
@@ -353,7 +353,7 @@ def test_cli_quote_command(monkeypatch) -> None:
 
 def test_cli_post_json_output(monkeypatch) -> None:
     class FakeClient:
-        def create_tweet(self, text: str, reply_to_id=None) -> str:
+        def create_tweet(self, text: str, reply_to_id=None, media_ids=None) -> str:
             assert text == "hello"
             assert reply_to_id is None
             return "999"

@@ -9,6 +9,8 @@ from __future__ import annotations
 import copy
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 
 from twitter_cli.client import (
     FEATURES,
@@ -540,3 +542,144 @@ class TestParseUserResult:
         assert user.following_count == 56
         assert user.tweets_count == 78
         assert user.likes_count == 0
+
+
+# ── upload_media ─────────────────────────────────────────────────────────
+
+class TestUploadMedia:
+    """Tests for TwitterClient.upload_media()."""
+
+    def _make_client(self):
+        client = TwitterClient.__new__(TwitterClient)
+        client._auth_token = "tok"
+        client._ct0 = "ct0"
+        client._cookie_string = None
+        client._request_delay = 0
+        client._max_retries = 3
+        client._retry_base_delay = 5.0
+        client._max_count = 200
+        client._client_transaction = None
+        client._ct_init_attempted = True
+        return client
+
+    @patch("twitter_cli.client._get_cffi_session")
+    def test_upload_media_init_append_finalize(self, mock_session, tmp_path):
+        """Happy path: INIT → APPEND → FINALIZE returns media_id."""
+        img = tmp_path / "photo.jpg"
+        img.write_bytes(b"\xff\xd8\xff\xe0" + b"\x00" * 100)  # fake JPEG
+
+        mock_resp_init = MagicMock()
+        mock_resp_init.status_code = 200
+        mock_resp_init.text = '{"media_id_string": "12345"}'
+
+        mock_resp_append = MagicMock()
+        mock_resp_append.status_code = 200
+        mock_resp_append.text = ""
+
+        mock_resp_finalize = MagicMock()
+        mock_resp_finalize.status_code = 200
+        mock_resp_finalize.text = '{"media_id_string": "12345"}'
+
+        sess = MagicMock()
+        sess.post = MagicMock(side_effect=[mock_resp_init, mock_resp_append, mock_resp_finalize])
+        mock_session.return_value = sess
+
+        client = self._make_client()
+        media_id = client.upload_media(str(img))
+
+        assert media_id == "12345"
+        assert sess.post.call_count == 3
+
+    def test_upload_media_file_not_found(self):
+        from twitter_cli.exceptions import MediaUploadError
+
+        client = self._make_client()
+        with pytest.raises(MediaUploadError, match="File not found"):
+            client.upload_media("/nonexistent/file.jpg")
+
+    def test_upload_media_too_large(self, tmp_path):
+        from twitter_cli.exceptions import MediaUploadError
+
+        img = tmp_path / "big.jpg"
+        img.write_bytes(b"\xff\xd8\xff\xe0" + b"\x00" * (6 * 1024 * 1024))  # 6 MB
+
+        client = self._make_client()
+        with pytest.raises(MediaUploadError, match="File too large"):
+            client.upload_media(str(img))
+
+    def test_upload_media_unsupported_format(self, tmp_path):
+        from twitter_cli.exceptions import MediaUploadError
+
+        txt = tmp_path / "notes.txt"
+        txt.write_text("hello")
+
+        client = self._make_client()
+        with pytest.raises(MediaUploadError, match="Unsupported image format"):
+            client.upload_media(str(txt))
+
+
+# ── create_tweet with media_ids ──────────────────────────────────────────
+
+class TestCreateTweetWithMedia:
+    """Tests that media_ids are correctly passed into CreateTweet variables."""
+
+    @patch("twitter_cli.client._get_cffi_session")
+    def test_create_tweet_with_media_ids(self, mock_session):
+        sess = MagicMock()
+        mock_session.return_value = sess
+
+        client = TwitterClient.__new__(TwitterClient)
+        client._auth_token = "tok"
+        client._ct0 = "ct0"
+        client._cookie_string = None
+        client._request_delay = 0
+        client._max_retries = 0
+        client._retry_base_delay = 0
+        client._max_count = 200
+        client._client_transaction = None
+        client._ct_init_attempted = True
+
+        captured_body = {}
+
+        def mock_graphql_post(operation_name, variables, features=None):
+            captured_body.update(variables)
+            return {"data": {"create_tweet": {"tweet_results": {"result": {"rest_id": "99"}}}}}
+
+        client._graphql_post = mock_graphql_post
+
+        result = client.create_tweet("test", media_ids=["111", "222"])
+        assert result == "99"
+
+        entities = captured_body["media"]["media_entities"]
+        assert len(entities) == 2
+        assert entities[0]["media_id"] == "111"
+        assert entities[1]["media_id"] == "222"
+
+    @patch("twitter_cli.client._get_cffi_session")
+    def test_create_tweet_without_media_ids(self, mock_session):
+        sess = MagicMock()
+        mock_session.return_value = sess
+
+        client = TwitterClient.__new__(TwitterClient)
+        client._auth_token = "tok"
+        client._ct0 = "ct0"
+        client._cookie_string = None
+        client._request_delay = 0
+        client._max_retries = 0
+        client._retry_base_delay = 0
+        client._max_count = 200
+        client._client_transaction = None
+        client._ct_init_attempted = True
+
+        captured_body = {}
+
+        def mock_graphql_post(operation_name, variables, features=None):
+            captured_body.update(variables)
+            return {"data": {"create_tweet": {"tweet_results": {"result": {"rest_id": "88"}}}}}
+
+        client._graphql_post = mock_graphql_post
+
+        result = client.create_tweet("no media")
+        assert result == "88"
+        assert captured_body["media"]["media_entities"] == []
+

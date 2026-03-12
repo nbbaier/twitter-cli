@@ -18,6 +18,7 @@ Read commands:
 
 Write commands:
     twitter post "text"               # post a tweet
+    twitter post "text" -i photo.jpg  # post with image(s)
     twitter reply <id> "text"         # reply to a tweet
     twitter quote <id> "text"         # quote-tweet
     twitter delete <id>               # delete a tweet
@@ -849,6 +850,24 @@ def following(screen_name, max_count, as_json, as_yaml):
 
 # ── Write commands ──────────────────────────────────────────────────────
 
+_MAX_IMAGES = 4  # Twitter allows up to 4 images per tweet
+
+
+def _upload_images(client, image_paths, rich_output=True):
+    # type: (TwitterClient, tuple, bool) -> list
+    """Upload images and return list of media_id strings."""
+    if not image_paths:
+        return []
+    if len(image_paths) > _MAX_IMAGES:
+        raise click.UsageError("Too many images: max %d, got %d" % (_MAX_IMAGES, len(image_paths)))
+    media_ids = []
+    for i, path in enumerate(image_paths, 1):
+        if rich_output:
+            console.print("📤 Uploading image %d/%d: %s" % (i, len(image_paths), path))
+        media_ids.append(client.upload_media(path))
+    return media_ids
+
+
 def _write_action(emoji, action_desc, client_method, tweet_id, as_json=False, as_yaml=False):
     # type: (str, str, str, str, bool, bool) -> None
     """Generic write action helper to reduce CLI command boilerplate.
@@ -874,14 +893,24 @@ def _write_action(emoji, action_desc, client_method, tweet_id, as_json=False, as
 @cli.command()
 @click.argument("text")
 @click.option("--reply-to", "-r", default=None, help="Reply to this tweet ID.")
+@click.option("--image", "-i", "images", multiple=True, type=click.Path(exists=True), help="Attach image (up to 4). Repeatable.")
 @structured_output_options
-def post(text, reply_to, as_json, as_yaml):
-    # type: (str, Optional[str], bool, bool) -> None
-    """Post a new tweet. TEXT is the tweet content."""
+def post(text, reply_to, images, as_json, as_yaml):
+    # type: (str, Optional[str], tuple, bool, bool) -> None
+    """Post a new tweet. TEXT is the tweet content.
+
+    Attach images with --image / -i (up to 4):
+
+    \b
+      twitter post "Hello!" --image photo.jpg
+      twitter post "Gallery" -i a.png -i b.png -i c.jpg
+    """
     action = "Replying to %s" % reply_to if reply_to else "Posting tweet"
+    rich_output = not _structured_mode(as_json=as_json, as_yaml=as_yaml)
 
     def operation(client: TwitterClient) -> WritePayload:
-        tweet_id = client.create_tweet(text, reply_to_id=reply_to)
+        media_ids = _upload_images(client, images, rich_output=rich_output)
+        tweet_id = client.create_tweet(text, reply_to_id=reply_to, media_ids=media_ids or None)
         return {"success": True, "action": "post", "id": tweet_id, "url": "https://x.com/i/status/%s" % tweet_id}
 
     payload = _run_write_command(
@@ -899,13 +928,16 @@ def post(text, reply_to, as_json, as_yaml):
 @cli.command(name="reply")
 @click.argument("tweet_id")
 @click.argument("text")
+@click.option("--image", "-i", "images", multiple=True, type=click.Path(exists=True), help="Attach image (up to 4). Repeatable.")
 @structured_output_options
-def reply_tweet(tweet_id, text, as_json, as_yaml):
-    # type: (str, str, bool, bool) -> None
+def reply_tweet(tweet_id, text, images, as_json, as_yaml):
+    # type: (str, str, tuple, bool, bool) -> None
     """Reply to a tweet. TWEET_ID is the tweet to reply to, TEXT is the reply content."""
     tweet_id = _normalize_tweet_id(tweet_id)
+    rich_output = not _structured_mode(as_json=as_json, as_yaml=as_yaml)
     def operation(client: TwitterClient) -> WritePayload:
-        new_id = client.create_tweet(text, reply_to_id=tweet_id)
+        media_ids = _upload_images(client, images, rich_output=rich_output)
+        new_id = client.create_tweet(text, reply_to_id=tweet_id, media_ids=media_ids or None)
         return {
             "success": True,
             "action": "reply",
@@ -929,13 +961,16 @@ def reply_tweet(tweet_id, text, as_json, as_yaml):
 @cli.command(name="quote")
 @click.argument("tweet_id")
 @click.argument("text")
+@click.option("--image", "-i", "images", multiple=True, type=click.Path(exists=True), help="Attach image (up to 4). Repeatable.")
 @structured_output_options
-def quote_tweet(tweet_id, text, as_json, as_yaml):
-    # type: (str, str, bool, bool) -> None
+def quote_tweet(tweet_id, text, images, as_json, as_yaml):
+    # type: (str, str, tuple, bool, bool) -> None
     """Quote-tweet a tweet. TWEET_ID is the tweet to quote, TEXT is the commentary."""
     tweet_id = _normalize_tweet_id(tweet_id)
+    rich_output = not _structured_mode(as_json=as_json, as_yaml=as_yaml)
     def operation(client: TwitterClient) -> WritePayload:
-        new_id = client.quote_tweet(tweet_id, text)
+        media_ids = _upload_images(client, images, rich_output=rich_output)
+        new_id = client.quote_tweet(tweet_id, text, media_ids=media_ids or None)
         return {
             "success": True,
             "action": "quote",
@@ -953,7 +988,7 @@ def quote_tweet(tweet_id, text, as_json, as_yaml):
         error_details={"action": "quote", "quotedId": tweet_id},
     )
     if payload and not _structured_mode(as_json=as_json, as_yaml=as_yaml):
-        console.print("🔗 %s" % payload["url"])
+        console.print("🔗 %s" % payload["url"]) 
 
 
 @cli.command(name="status")

@@ -36,6 +36,10 @@ class QueryIdError(TwitterError):
     """Raised when a GraphQL queryId cannot be resolved."""
 
 
+class MediaUploadError(TwitterError):
+    """Raised when media upload fails (file not found, too large, unsupported format, API error)."""
+
+
 class TwitterAPIError(TwitterError):
     """Raised on non-OK Twitter API responses with HTTP status + message."""
 
