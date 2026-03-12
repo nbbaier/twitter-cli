@@ -179,9 +179,13 @@ twitter following elonmusk --max 50    # Following
 
 ```bash
 twitter post "Hello from twitter-cli!"              # Post tweet
+twitter post "Hello!" --image photo.jpg              # Post with image
+twitter post "Gallery" -i a.png -i b.jpg             # Up to 4 images
 twitter reply 1234567890 "Great tweet!"              # Reply (standalone)
+twitter reply 1234567890 "Nice!" -i pic.png          # Reply with image
 twitter post "reply text" --reply-to 1234567890      # Reply (via post)
 twitter quote 1234567890 "Interesting take"          # Quote-tweet
+twitter quote 1234567890 "Look" -i chart.png         # Quote with image
 twitter delete 1234567890                            # Delete tweet
 twitter like 1234567890                              # Like
 twitter unlike 1234567890                            # Unlike
@@ -193,6 +197,12 @@ twitter follow elonmusk                              # Follow user
 twitter unfollow elonmusk                            # Unfollow user
 ```
 
+**Image upload notes:**
+- Supported formats: JPEG, PNG, GIF, WebP
+- Max file size: 5 MB per image
+- Max 4 images per tweet
+- Use `--image` / `-i` (repeatable)
+
 ## Agent Workflows
 
 ### Post and verify
@@ -200,6 +210,16 @@ twitter unfollow elonmusk                            # Unfollow user
 ```bash
 twitter post "My tweet text" 2>/dev/null
 # Output includes tweet URL: 🔗 https://x.com/i/status/<id>
+```
+
+### Post with images
+
+```bash
+# Single image
+twitter post "Check this out!" --image /path/to/photo.jpg
+
+# Multiple images
+twitter post "Photo gallery" -i img1.png -i img2.jpg -i img3.webp
 ```
 
 ### Reply to someone's latest tweet
@@ -306,7 +326,7 @@ twitter bookmarks --filter
 
 ## Limitations
 
-- **Text only** — no media/image upload
+- **Images only** — video/GIF animation upload not yet supported (image upload supports JPEG/PNG/GIF/WebP)
 - **No DMs** — no direct messaging
 - **No notifications** — can't read notifications
 - **No polls** — can't create polls

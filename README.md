@@ -35,7 +35,8 @@ A terminal-first CLI for Twitter/X: read timelines, bookmarks, and user profiles
 > **AI Agent Tip:** Prefer `--yaml` for structured output unless a strict JSON parser is required. Non-TTY stdout defaults to YAML automatically. Use `--max` to limit results.
 
 **Write:**
-- Post: create new tweets and replies
+- Post: create new tweets and replies, with optional image attachments (up to 4)
+- Quote: quote-tweet with optional images
 - Delete: remove your own tweets
 - Like / Unlike: manage tweet likes
 - Retweet / Unretweet: manage retweets
@@ -144,7 +145,11 @@ twitter following elonmusk --max 50
 
 # Write operations
 twitter post "Hello from twitter-cli!"
+twitter post "Hello!" --image photo.jpg            # Post with image
+twitter post "Gallery" -i a.png -i b.jpg -i c.webp  # Up to 4 images
 twitter post "reply text" --reply-to 1234567890
+twitter reply 1234567890 "Nice!" -i screenshot.png  # Reply with image
+twitter quote 1234567890 "Look" -i chart.png        # Quote with image
 twitter post "Hello from twitter-cli!" --json
 twitter delete 1234567890
 twitter like 1234567890
@@ -363,7 +368,8 @@ After installation, OpenClaw can call `twitter-cli` commands directly.
 > **AI Agent 提示：** 需要结构化输出时优先使用 `--yaml`，除非下游必须是 JSON。stdout 不是 TTY 时默认输出 YAML。用 `--max` 控制返回数量。
 
 **写入:**
-- 发推：发布新推文和回复
+- 发推：发布新推文和回复，支持附带图片（最多 4 张，支持 JPEG/PNG/GIF/WebP）
+- 引用推文：带评论的转发，也支持附带图片
 - 删除：删除自己的推文
 - 点赞 / 取消点赞
 - 转推 / 取消转推
@@ -442,7 +448,11 @@ twitter following elonmusk
 
 # 写操作
 twitter post "你好，世界！"
+twitter post "发图" --image photo.jpg              # 带图发推
+twitter post "多图" -i a.png -i b.jpg -i c.webp    # 最多 4 张图片
 twitter post "回复内容" --reply-to 1234567890
+twitter reply 1234567890 "回复" -i screenshot.png   # 带图回复
+twitter quote 1234567890 "评论" -i chart.png        # 带图引用
 twitter post "你好，世界！" --json
 twitter delete 1234567890
 twitter like 1234567890
