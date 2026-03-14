@@ -246,9 +246,12 @@ def parse_tweet_result(result, depth=0):
     if is_retweet:
         retweeted_by = user_core.get("screen_name") or user_legacy.get("screen_name", "unknown")
 
+    # Prefer note_tweet full text for long tweets ("Show More")
+    note_text = _deep_get(actual_data, "note_tweet", "note_tweet_results", "result", "text")
+
     return Tweet(
         id=actual_data.get("rest_id", ""),
-        text=actual_legacy.get("full_text", ""),
+        text=note_text or actual_legacy.get("full_text", ""),
         author=author,
         metrics=Metrics(
             likes=_parse_int(actual_legacy.get("favorite_count"), 0),

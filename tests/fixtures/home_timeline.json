@@ -61,6 +61,13 @@
                             ]
                           }
                         },
+                        "note_tweet": {
+                          "note_tweet_results": {
+                            "result": {
+                              "text": "Hello\nworld\n\nThis is the full text of a long tweet that goes beyond the 280 character limit and contains additional content that would be hidden behind Show More in the Twitter UI."
+                            }
+                          }
+                        },
                         "views": {
                           "count": "1234"
                         }

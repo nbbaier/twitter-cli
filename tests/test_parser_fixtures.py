@@ -26,6 +26,9 @@ def test_parse_home_timeline_fixture(fixture_loader) -> None:
     assert [tweet.id for tweet in tweets] == ["1", "20"]
     assert cursor == "cursor-bottom-1"
     assert tweets[0].media[0].type == "photo"
+    # note_tweet full text should be preferred over legacy.full_text for long tweets
+    assert "Show More" in tweets[0].text
+    assert tweets[0].text.startswith("Hello\nworld\n")
     assert tweets[0].urls == ["https://example.com/post"]
     assert tweets[1].is_retweet is True
     assert tweets[1].retweeted_by == "bob"
