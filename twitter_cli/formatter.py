@@ -128,7 +128,7 @@ def print_tweet_detail(tweet: Tweet, console: Optional[Console] = None) -> None:
         qt = tweet.quoted_tweet
         body_parts.append("")
         body_parts.append("┌── Quoted @%s ──" % qt.author.screen_name)
-        body_parts.append(qt.text[:200])
+        body_parts.append(qt.text)
 
     body_parts.append("")
     body_parts.append(
