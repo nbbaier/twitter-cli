@@ -70,7 +70,7 @@ body:
     id: diagnostics
     attributes:
       label: Diagnostics
-      description: "Paste the output of `twitter doctor` here. This helps us diagnose cookie and auth issues quickly."
+      description: "Paste the output of `twitter -v <command>` here. This helps us diagnose cookie and auth issues quickly."
       render: text
   - type: textarea
     id: logs

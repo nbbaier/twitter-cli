@@ -584,7 +584,7 @@ def get_cookies() -> Dict[str, str]:
         lines.append("Option 1: Set TWITTER_AUTH_TOKEN and TWITTER_CT0 environment variables")
         lines.append("Option 2: Make sure you are logged into x.com in your browser (Arc/Chrome/Edge/Firefox/Brave)")
         lines.append("")
-        lines.append("Run 'twitter doctor' for full diagnostics.")
+        lines.append("Run 'twitter -v <command>' for debug diagnostics.")
         raise RuntimeError("\n".join(lines))
 
     # Verify only for explicit auth failures; transient endpoint issues are tolerated.

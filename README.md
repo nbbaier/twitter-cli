@@ -292,7 +292,7 @@ Mode behavior:
 - `Invalid tweet JSON file`
   - Regenerate input using `twitter feed --json > tweets.json`.
 
-**Diagnostics command**: Run `twitter doctor` to output a full diagnostic report (version, OS, browser detection, Keychain status, cookie extraction results). Paste this output into bug reports.
+
 
 Structured error codes commonly include `not_authenticated`, `not_found`, `invalid_input`, `rate_limited`, and `api_error`.
 
@@ -540,7 +540,7 @@ score = likes_w * likes
   - 或在弹出 Keychain 授权时点击 **"始终允许"**。
 - 报错 `Twitter API error 404`：通常是 queryId 轮换，重试即可。
 
-**诊断命令**：运行 `twitter doctor` 可输出完整诊断报告（版本、OS、浏览器检测、Keychain 状态、cookie 提取结果），方便提交 bug report。
+
 
 - 结构化错误码通常会区分 `not_authenticated`、`not_found`、`invalid_input`、`rate_limited`、`api_error`。
 

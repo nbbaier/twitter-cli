@@ -373,7 +373,7 @@ def test_get_cookies_includes_keychain_hint_in_error(monkeypatch) -> None:
 
     msg = str(exc_info.value)
     assert "security unlock-keychain" in msg
-    assert "twitter doctor" in msg
+    assert "twitter -v" in msg
 
 
 def test_extract_in_process_returns_diagnostics_on_failure(monkeypatch) -> None:
