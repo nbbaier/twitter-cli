@@ -333,16 +333,23 @@ twitter_cli/
 
 twitter-cli ships with a [`SKILL.md`](./SKILL.md) so AI agents can execute common X/Twitter workflows.
 
-#### Claude Code / Antigravity
+#### [Skills CLI](https://github.com/vercel-labs/skills) (Recommended)
 
 ```bash
-# Clone into your project's skills directory
+npx skills add jackwener/twitter-cli
+```
+
+| Flag | Description |
+| --- | --- |
+| `-g` | Install globally (user-level, shared across projects) |
+| `-a claude-code` | Target a specific agent |
+| `-y` | Non-interactive mode |
+
+#### Manual Install
+
+```bash
 mkdir -p .agents/skills
 git clone git@github.com:jackwener/twitter-cli.git .agents/skills/twitter-cli
-
-# Or copy SKILL.md only
-curl -o .agents/skills/twitter-cli/SKILL.md \
-  https://raw.githubusercontent.com/jackwener/twitter-cli/main/SKILL.md
 ```
 
 #### OpenClaw / ClawHub
@@ -564,16 +571,23 @@ score = likes_w * likes
 
 twitter-cli 提供了 [`SKILL.md`](./SKILL.md)，可让 AI Agent 更稳定地调用本工具。
 
-#### Claude Code / Antigravity
+#### [Skills CLI](https://github.com/vercel-labs/skills)（推荐）
 
 ```bash
-# 克隆到项目 skills 目录
+npx skills add jackwener/twitter-cli
+```
+
+| 参数 | 说明 |
+| --- | --- |
+| `-g` | 全局安装（用户级别，跨项目共享） |
+| `-a claude-code` | 指定目标 Agent |
+| `-y` | 非交互模式 |
+
+#### 手动安装
+
+```bash
 mkdir -p .agents/skills
 git clone git@github.com:jackwener/twitter-cli.git .agents/skills/twitter-cli
-
-# 或仅下载 SKILL.md
-curl -o .agents/skills/twitter-cli/SKILL.md \
-  https://raw.githubusercontent.com/jackwener/twitter-cli/main/SKILL.md
 ```
 
 #### OpenClaw / ClawHub
