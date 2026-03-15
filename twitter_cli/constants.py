@@ -76,8 +76,6 @@ def get_accept_language():
     # type: () -> str
     tag = _get_locale_tag()
     language = tag.split("-", 1)[0] or "en"
-    if tag == language:
-        return "%s,%s;q=0.9,en;q=0.8" % (tag, language)
     return "%s,%s;q=0.9,en;q=0.8" % (tag, language)
 
 

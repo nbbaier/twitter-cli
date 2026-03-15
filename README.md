@@ -182,6 +182,12 @@ Browser extraction is recommended — it forwards ALL Twitter cookies (not just 
 TWITTER_CHROME_PROFILE="Profile 2" twitter feed
 ```
 
+**Browser priority:** If you have multiple browsers, set `TWITTER_BROWSER` to try a specific browser first:
+
+```bash
+TWITTER_BROWSER=chrome twitter feed    # Supported: arc, chrome, edge, firefox, brave
+```
+
 After loading cookies, the CLI performs lightweight verification. Commands that require account access fail fast on clear auth errors (`401/403`).
 
 ### Proxy Support
@@ -489,6 +495,12 @@ twitter follow elonmusk --json
 
 ```bash
 TWITTER_CHROME_PROFILE="Profile 2" twitter feed
+```
+
+**浏览器优先级**：如果有多个浏览器，可通过 `TWITTER_BROWSER` 指定优先尝试的浏览器：
+
+```bash
+TWITTER_BROWSER=chrome twitter feed    # 支持: arc, chrome, edge, firefox, brave
 ```
 
 ### 代理支持
