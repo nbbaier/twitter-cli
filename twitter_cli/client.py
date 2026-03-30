@@ -435,20 +435,22 @@ class TwitterClient:
             override_base_variables=True,
         )
 
-    def fetch_followers(self, user_id, count=20):
-        # type: (str, int) -> List[UserProfile]
+    def fetch_followers(self, user_id, count=20, progress_callback=None):
+        # type: (str, Optional[int], Optional[Callable[[int, int, Optional[str]], None]]) -> List[UserProfile]
         """Fetch followers of a user."""
         return self._fetch_user_list(
             "Followers", user_id, count,
             lambda data: _deep_get(data, "data", "user", "result", "timeline", "timeline", "instructions"),
+            progress_callback=progress_callback,
         )
 
-    def fetch_following(self, user_id, count=20):
-        # type: (str, int) -> List[UserProfile]
+    def fetch_following(self, user_id, count=20, progress_callback=None):
+        # type: (str, Optional[int], Optional[Callable[[int, int, Optional[str]], None]]) -> List[UserProfile]
         """Fetch users that a user is following."""
         return self._fetch_user_list(
             "Following", user_id, count,
             lambda data: _deep_get(data, "data", "user", "result", "timeline", "timeline", "instructions"),
+            progress_callback=progress_callback,
         )
 
     # ── Write operations ─────────────────────────────────────────────
@@ -801,23 +803,31 @@ class TwitterClient:
 
         return tweets[:count]
 
-    def _fetch_user_list(self, operation_name, user_id, count, get_instructions):
-        # type: (str, str, int, Callable[[Any], Any]) -> List[UserProfile]
+    def _fetch_user_list(self, operation_name, user_id, count, get_instructions, progress_callback=None):
+        # type: (str, str, Optional[int], Callable[[Any], Any], Optional[Callable[[int, int, Optional[str]], None]]) -> List[UserProfile]
         """Generic user list fetcher (for followers/following) with pagination."""
-        if count <= 0:
+        if count is not None and count <= 0:
             return []
-        count = min(count, self._max_count)
+        unlimited = count is None
+        if not unlimited:
+            count = min(count, self._max_count)
         users = []  # type: List[UserProfile]
         seen_ids = set()  # type: Set[str]
         cursor = None  # type: Optional[str]
         attempts = 0
-        max_attempts = int(math.ceil(count / 20.0)) + 2
+        page_number = 0
+        max_attempts = None if unlimited else int(math.ceil(count / 20.0)) + 2
+        no_progress_pages = 0
+        max_no_progress_pages = 3
 
-        while len(users) < count and attempts < max_attempts:
+        while (unlimited or len(users) < count) and (max_attempts is None or attempts < max_attempts):
             attempts += 1
+            page_number += 1
+            users_before_page = len(users)
+            request_count = 40 if unlimited else min(count - len(users) + 5, 40)
             variables = {
                 "userId": user_id,
-                "count": min(count - len(users) + 5, 40),
+                "count": request_count,
                 "includePromotedContent": False,
             }  # type: Dict[str, Any]
             if cursor:
@@ -853,20 +863,35 @@ class TwitterClient:
                     seen_ids.add(user.id)
                     users.append(user)
 
+            page_added_users = len(users) - users_before_page
+            if page_added_users == 0:
+                no_progress_pages += 1
+            else:
+                no_progress_pages = 0
+
+            if progress_callback is not None:
+                progress_callback(page_number, len(users), next_cursor)
+
             if not next_cursor:
                 break
             if next_cursor == cursor:
                 logger.debug("User list pagination stopped because cursor did not advance: %s", next_cursor)
+                break
+            if no_progress_pages >= max_no_progress_pages:
+                logger.debug(
+                    "User list pagination stopped after %d consecutive no-progress pages",
+                    no_progress_pages,
+                )
                 break
             cursor = next_cursor
 
             if not new_users:
                 logger.debug("User list page returned no users but exposed next cursor; continuing pagination")
 
-            if len(users) < count and self._request_delay > 0:
+            if (unlimited or len(users) < count) and self._request_delay > 0:
                 time.sleep(self._request_delay * random.uniform(0.7, 1.5))
 
-        return users[:count]
+        return users if unlimited else users[:count]
 
     # ── Internal: GraphQL request methods ────────────────────────────
 

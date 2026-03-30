@@ -1185,6 +1185,39 @@ class TestParseUserResult:
         assert user.tweets_count == 78
         assert user.likes_count == 0
 
+    def test_falls_back_to_core_and_top_level_fields(self):
+        user = parse_user_result(
+            {
+                "rest_id": "user-2",
+                "core": {
+                    "name": "Rami Banna",
+                    "screen_name": "mrramibanna",
+                },
+                "legacy": {
+                    "description": "Product @ Stripe.",
+                    "followers_count": 576,
+                    "friends_count": 786,
+                    "statuses_count": 975,
+                    "favourites_count": 8181,
+                },
+                "location": "Palo Alto, CA",
+                "avatar": {
+                    "image_url": "https://pbs.twimg.com/profile_images/example_normal.jpg",
+                },
+                "created_at": "Sat Oct 19 13:32:49 +0000 2013",
+                "is_blue_verified": True,
+            }
+        )
+
+        assert user is not None
+        assert user.name == "Rami Banna"
+        assert user.screen_name == "mrramibanna"
+        assert user.bio == "Product @ Stripe."
+        assert user.location == "Palo Alto, CA"
+        assert user.profile_image_url == "https://pbs.twimg.com/profile_images/example_normal.jpg"
+        assert user.created_at == "Sat Oct 19 13:32:49 +0000 2013"
+        assert user.verified is True
+
 
 # ── upload_media ─────────────────────────────────────────────────────────
 

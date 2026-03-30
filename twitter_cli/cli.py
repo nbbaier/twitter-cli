@@ -302,6 +302,7 @@ def cli(ctx, verbose, compact):
     ensure_utf8_streams()
     _setup_logging(verbose)
     ctx.ensure_object(dict)
+    ctx.obj["verbose"] = verbose
     ctx.obj["compact"] = compact
 
 
@@ -1006,26 +1007,53 @@ def _fetch_and_display_users(
     fetch_fn_name: str,
     label: str,
     max_count: Optional[int],
+    fetch_all: bool,
+    verbose: bool,
     as_json: bool,
     as_yaml: bool,
 ) -> None:
     """Shared fetch-and-display logic for followers/following commands."""
     screen_name = screen_name.lstrip("@")
+    if fetch_all and max_count is not None:
+        raise click.UsageError("Use either --max or --all, not both.")
     config = load_config()
     try:
         rich_output = use_rich_output(as_json=as_json, as_yaml=as_yaml)
         client = _get_client(config, quiet=not rich_output)
+        def report_status(message: str) -> None:
+            if rich_output:
+                console.print(message)
+            elif verbose:
+                logger.info(message)
+
         if rich_output:
-            console.print("👤 Fetching @%s's profile..." % screen_name)
+            report_status("👤 Fetching @%s's profile..." % screen_name)
+        elif verbose:
+            report_status("Fetching @%s's profile..." % screen_name)
         profile = client.fetch_user(screen_name)
-        fetch_count = _resolve_configured_count(config, max_count)
+        fetch_count = None if fetch_all else _resolve_configured_count(config, max_count)
+        progress_callback = None
+        if fetch_all and verbose:
+            def progress_callback(page_number, total_users, cursor):
+                # type: (int, int, Optional[str]) -> None
+                cursor_text = cursor[:12] + "..." if cursor else "end"
+                prefix = "   • " if rich_output else ""
+                report_status(
+                    "%sPage %d fetched, %d %s so far (cursor: %s)"
+                    % (prefix, page_number, total_users, label, cursor_text)
+                )
+        count_label = "all %s" % label if fetch_all else "%s (%d)" % (label, fetch_count)
         if rich_output:
-            console.print("👥 Fetching %s (%d)...\n" % (label, fetch_count))
+            report_status("👥 Fetching %s...\n" % count_label)
+        elif verbose:
+            report_status("Fetching %s..." % count_label)
         start = time.time()
-        users = getattr(client, fetch_fn_name)(profile.id, fetch_count)
+        users = getattr(client, fetch_fn_name)(profile.id, fetch_count, progress_callback=progress_callback)
         elapsed = time.time() - start
         if rich_output:
-            console.print("✅ Fetched %d %s in %.1fs\n" % (len(users), label, elapsed))
+            report_status("✅ Fetched %d %s in %.1fs\n" % (len(users), label, elapsed))
+        elif verbose:
+            report_status("Fetched %d %s in %.1fs" % (len(users), label, elapsed))
     except (TwitterError, RuntimeError) as exc:
         _exit_with_error(exc)
 
@@ -1039,21 +1067,43 @@ def _fetch_and_display_users(
 @cli.command()
 @click.argument("screen_name")
 @click.option("--max", "-n", "max_count", type=int, default=None, help="Max users to fetch.")
+@click.option("--all", "fetch_all", is_flag=True, help="Fetch all available users.")
 @structured_output_options
-def followers(screen_name, max_count, as_json, as_yaml):
-    # type: (str, int, bool, bool) -> None
+@click.pass_context
+def followers(ctx, screen_name, max_count, fetch_all, as_json, as_yaml):
+    # type: (Any, str, Optional[int], bool, bool, bool) -> None
     """List followers of a user. SCREEN_NAME is the @handle (without @)."""
-    _fetch_and_display_users(screen_name, "fetch_followers", "followers", max_count, as_json, as_yaml)
+    _fetch_and_display_users(
+        screen_name,
+        "fetch_followers",
+        "followers",
+        max_count,
+        fetch_all,
+        ctx.obj.get("verbose", False),
+        as_json,
+        as_yaml,
+    )
 
 
 @cli.command()
 @click.argument("screen_name")
 @click.option("--max", "-n", "max_count", type=int, default=None, help="Max users to fetch.")
+@click.option("--all", "fetch_all", is_flag=True, help="Fetch all available users.")
 @structured_output_options
-def following(screen_name, max_count, as_json, as_yaml):
-    # type: (str, int, bool, bool) -> None
+@click.pass_context
+def following(ctx, screen_name, max_count, fetch_all, as_json, as_yaml):
+    # type: (Any, str, Optional[int], bool, bool, bool) -> None
     """List accounts a user is following. SCREEN_NAME is the @handle (without @)."""
-    _fetch_and_display_users(screen_name, "fetch_following", "following", max_count, as_json, as_yaml)
+    _fetch_and_display_users(
+        screen_name,
+        "fetch_following",
+        "following",
+        max_count,
+        fetch_all,
+        ctx.obj.get("verbose", False),
+        as_json,
+        as_yaml,
+    )
 
 
 # ── Write commands ──────────────────────────────────────────────────────

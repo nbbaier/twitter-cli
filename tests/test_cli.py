@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import time
 
 from click.testing import CliRunner
@@ -8,7 +9,7 @@ import pytest
 from rich.console import Console
 import yaml
 
-from twitter_cli.cli import cli
+from twitter_cli.cli import _fetch_and_display_users, cli
 from twitter_cli.formatter import article_to_markdown, print_tweet_table
 from twitter_cli.models import Author, BookmarkFolder, Metrics, Tweet, UserProfile
 from twitter_cli.serialization import tweets_to_json
@@ -23,6 +24,111 @@ def test_cli_user_command_works_with_client_factory(monkeypatch) -> None:
     runner = CliRunner()
     result = runner.invoke(cli, ["user", "alice"])
     assert result.exit_code == 0
+
+
+def test_cli_following_all_fetches_without_max(monkeypatch) -> None:
+    class FakeClient:
+        def fetch_user(self, screen_name: str) -> UserProfile:
+            return UserProfile(id="1", name="Alice", screen_name=screen_name)
+
+        def fetch_following(
+            self,
+            user_id: str,
+            count: int | None,
+            progress_callback=None,
+        ) -> list[UserProfile]:
+            assert user_id == "1"
+            assert count is None
+            return [UserProfile(id="2", name="Bob", screen_name="bob")]
+
+    monkeypatch.setattr("twitter_cli.cli._get_client", lambda config=None, quiet=False: FakeClient())
+    monkeypatch.setattr(
+        "twitter_cli.cli.load_config",
+        lambda: {"fetch": {"count": 50}, "filter": {}, "rateLimit": {}},
+    )
+    runner = CliRunner()
+
+    result = runner.invoke(cli, ["following", "alice", "--all", "--json"])
+
+    assert result.exit_code == 0
+    payload = yaml.safe_load(result.output)
+    assert payload["ok"] is True
+    assert len(payload["data"]) == 1
+    assert payload["data"][0]["screenName"] == "bob"
+
+
+def test_cli_following_all_verbose_shows_progress(monkeypatch) -> None:
+    class FakeClient:
+        def fetch_user(self, screen_name: str) -> UserProfile:
+            return UserProfile(id="1", name="Alice", screen_name=screen_name)
+
+        def fetch_following(
+            self,
+            user_id: str,
+            count: int | None,
+            progress_callback=None,
+        ) -> list[UserProfile]:
+            assert user_id == "1"
+            assert count is None
+            assert progress_callback is not None
+            progress_callback(1, 40, "cursor-1")
+            progress_callback(2, 55, None)
+            return [UserProfile(id="2", name="Bob", screen_name="bob")]
+
+    monkeypatch.setattr("twitter_cli.cli._get_client", lambda config=None, quiet=False: FakeClient())
+    monkeypatch.setattr(
+        "twitter_cli.cli.load_config",
+        lambda: {"fetch": {"count": 50}, "filter": {}, "rateLimit": {}},
+    )
+    runner = CliRunner()
+
+    result = runner.invoke(cli, ["-v", "following", "alice", "--all"])
+
+    assert result.exit_code == 0
+    assert "Page 1 fetched, 40 following so far" in result.output
+    assert "Page 2 fetched, 55 following so far" in result.output
+
+
+def test_cli_following_all_verbose_json_logs_progress(monkeypatch, caplog) -> None:
+    class FakeClient:
+        def fetch_user(self, screen_name: str) -> UserProfile:
+            return UserProfile(id="1", name="Alice", screen_name=screen_name)
+
+        def fetch_following(
+            self,
+            user_id: str,
+            count: int | None,
+            progress_callback=None,
+        ) -> list[UserProfile]:
+            assert user_id == "1"
+            assert count is None
+            assert progress_callback is not None
+            progress_callback(1, 40, "cursor-1")
+            return [UserProfile(id="2", name="Bob", screen_name="bob")]
+
+    monkeypatch.setattr("twitter_cli.cli._get_client", lambda config=None, quiet=False: FakeClient())
+    monkeypatch.setattr(
+        "twitter_cli.cli.load_config",
+        lambda: {"fetch": {"count": 50}, "filter": {}, "rateLimit": {}},
+    )
+
+    with caplog.at_level(logging.INFO, logger="twitter_cli.cli"):
+        _fetch_and_display_users("alice", "fetch_following", "following", None, True, True, True, False)
+
+    messages = [record.getMessage() for record in caplog.records]
+    assert "Fetching @alice's profile..." in messages
+    assert "Fetching all following..." in messages
+    assert "Page 1 fetched, 40 following so far (cursor: cursor-1...)" in messages
+
+
+def test_cli_following_rejects_max_with_all(monkeypatch) -> None:
+    monkeypatch.setattr("twitter_cli.cli.load_config", lambda: {})
+    runner = CliRunner()
+
+    result = runner.invoke(cli, ["following", "alice", "--all", "--max", "10"])
+
+    assert result.exit_code == 2
+    assert "Use either --max or --all, not both." in result.output
 
 
 
