@@ -27,6 +27,7 @@ A terminal-first CLI for Twitter/X: read timelines, bookmarks, and user profiles
 - Article: fetch a Twitter Article and export it as Markdown
 - List timeline: fetch tweets from a Twitter List
 - User lookup: fetch user profile, tweets, likes, followers, and following
+- Verbose progress: use `--verbose` with `followers` or `following` to see pagination status
 - `--full-text`: disable tweet text truncation in rich table output
 - Structured output: export any data as YAML or JSON for scripting and AI agent integration
 - Optional scoring filter: rank tweets by engagement weights
@@ -147,6 +148,8 @@ twitter likes elonmusk --full-text
 twitter likes elonmusk -o likes.json
 twitter followers elonmusk --max 50
 twitter following elonmusk --max 50
+twitter following nbbaier --all --verbose  # Show pagination progress while fetching everything
+# The global form also works: twitter -v following nbbaier --all
 
 # Write operations
 twitter post "Hello from twitter-cli!"

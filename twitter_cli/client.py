@@ -808,23 +808,25 @@ class TwitterClient:
         """Generic user list fetcher (for followers/following) with pagination."""
         if count is not None and count <= 0:
             return []
-        unlimited = count is None
-        if not unlimited:
-            count = min(count, self._max_count)
+        limit = None  # type: Optional[int]
+        if count is not None:
+            limit = min(count, self._max_count)
         users = []  # type: List[UserProfile]
         seen_ids = set()  # type: Set[str]
         cursor = None  # type: Optional[str]
         attempts = 0
         page_number = 0
-        max_attempts = None if unlimited else int(math.ceil(count / 20.0)) + 2
+        max_attempts = None if limit is None else int(math.ceil(limit / 20.0)) + 2
         no_progress_pages = 0
         max_no_progress_pages = 3
 
-        while (unlimited or len(users) < count) and (max_attempts is None or attempts < max_attempts):
+        while (limit is None or len(users) < limit) and (
+            max_attempts is None or attempts < max_attempts
+        ):
             attempts += 1
             page_number += 1
             users_before_page = len(users)
-            request_count = 40 if unlimited else min(count - len(users) + 5, 40)
+            request_count = 40 if limit is None else min(limit - len(users) + 5, 40)
             variables = {
                 "userId": user_id,
                 "count": request_count,
@@ -888,10 +890,10 @@ class TwitterClient:
             if not new_users:
                 logger.debug("User list page returned no users but exposed next cursor; continuing pagination")
 
-            if (unlimited or len(users) < count) and self._request_delay > 0:
+            if (limit is None or len(users) < limit) and self._request_delay > 0:
                 time.sleep(self._request_delay * random.uniform(0.7, 1.5))
 
-        return users if unlimited else users[:count]
+        return users if limit is None else users[:limit]
 
     # ── Internal: GraphQL request methods ────────────────────────────
 

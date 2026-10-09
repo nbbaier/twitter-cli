@@ -57,7 +57,14 @@ def test_cli_following_all_fetches_without_max(monkeypatch) -> None:
     assert payload["data"][0]["screenName"] == "bob"
 
 
-def test_cli_following_all_verbose_shows_progress(monkeypatch) -> None:
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["-v", "following", "alice", "--all"],
+        ["following", "alice", "--all", "--verbose"],
+    ],
+)
+def test_cli_following_all_verbose_shows_progress(monkeypatch, args) -> None:
     class FakeClient:
         def fetch_user(self, screen_name: str) -> UserProfile:
             return UserProfile(id="1", name="Alice", screen_name=screen_name)
@@ -82,7 +89,7 @@ def test_cli_following_all_verbose_shows_progress(monkeypatch) -> None:
     )
     runner = CliRunner()
 
-    result = runner.invoke(cli, ["-v", "following", "alice", "--all"])
+    result = runner.invoke(cli, args)
 
     assert result.exit_code == 0
     assert "Page 1 fetched, 40 following so far" in result.output
